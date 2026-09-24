@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap');
+@import './tokens.css';
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body, #app {
+  margin: 0;
+  height: 100%;
+  background: var(--background-dark);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-weight: 700;
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+input { font: inherit; }
+
+.card {
+  background: linear-gradient(180deg, var(--surface-dark), var(--surface-darker));
+  border: 2px solid var(--surface-wood);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.screen {
+  padding: 12px 14px calc(var(--nav-height) + var(--safe-bottom) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.screen-title { margin: 4px 0 0; font-size: 22px; font-weight: 900; }
+.muted { color: var(--text-secondary); }
+.row { display: flex; align-items: center; gap: 8px; }
+.spacer { flex: 1; }
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.03, 0.97) translateY(1px); }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  30% { transform: translateY(-2px) rotate(-3deg); }
+  60% { transform: translateY(0) rotate(2deg); }
+}
+@keyframes pop-in {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}

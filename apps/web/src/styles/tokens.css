@@ -1,0 +1,39 @@
+/* Дизайн-токены. Цвета — только отсюда. */
+:root {
+  --background-dark: #1b130d;
+  --surface-dark: #2a1d13;
+  --surface-darker: #20160f;
+  --surface-wood: #5a3a22;
+  --surface-wood-light: #7a5130;
+  --border-wood: #8a5d36;
+  --cream: #f6e7c8;
+  --warm-white: #fff8ea;
+  --egg-shell: #f1dcb6;
+  --gold: #f5b82e;
+  --gold-dark: #c98a12;
+  --green-success: #45b33a;
+  --green-dark: #2d7d25;
+  --red-accent: #d9412b;
+  --text-primary: #fff3dc;
+  --text-secondary: #c9b08c;
+  --text-muted: #8c7457;
+
+  --rarity-common: #c9b08c;
+  --rarity-uncommon: #6fc25a;
+  --rarity-rare: #4aa3e0;
+  --rarity-epic: #b36be0;
+  --rarity-legendary: #f5b82e;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --btn-height: 48px;
+  --gap: 10px;
+
+  --shadow-card: 0 4px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --font: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nav-height: 68px;
+}
