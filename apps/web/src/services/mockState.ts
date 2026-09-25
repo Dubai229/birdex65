@@ -6,6 +6,7 @@ import { storageCapacity } from '@/economy/storage'
 import { levelForXp } from '@/economy/progression'
 import { currentEnergy, energyMaxForLevel } from '@/economy/energy'
 import { SEASON_MS } from '@/economy/season'
+import { freshModeEnergy } from '@/economy/modes'
 import type { GameState } from '@/types/game'
 import { getTelegramUser } from './telegram'
 
@@ -40,6 +41,7 @@ export function createNewState(now: number): GameState {
     reward: { streakDay: 0, lastClaimAt: null },
     events: { channelSubscribed: false, channelBonusClaimed: false },
     season: { id: 1, points: 0, startedAt: now, endsAt: now + SEASON_MS, lastSnapshotAt: null },
+    modeEnergy: freshModeEnergy(now),
     stats: { soldCoins: 0, bestPlay: 0 },
     version: SAVE_VERSION,
   }
@@ -60,6 +62,9 @@ export function syncDerived(state: GameState): void {
   }
   // Старые сохранения без статистики — дополняем, прогресс не сбрасывается.
   state.stats ??= { soldCoins: 0, bestPlay: 0 }
+  state.stats.soldEggs ??= 0
+  // Старые сохранения без режимов — энергия режимов полная.
+  state.modeEnergy ??= freshModeEnergy(Date.now())
   state.profile.level = levelForXp(state.profile.xp)
   state.balance.storageCapacity = storageCapacity(state.storageLevel)
   state.balance.energyMax = energyMaxForLevel(state.energyLevel)

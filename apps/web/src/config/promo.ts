@@ -8,6 +8,8 @@ export interface PromoCode {
   coins?: number
   /** Энергия для Play. Может превысить максимум — лишнее не сгорает. */
   energy?: number
+  /** Какому режиму энергия: catch — Ловля яиц (по умолчанию), fox — Лисы, run — Курица и бомбы. */
+  energyMode?: 'catch' | 'fox' | 'run'
 }
 
 export const PROMO_CODES: PromoCode[] = [
@@ -15,6 +17,10 @@ export const PROMO_CODES: PromoCode[] = [
   { code: 'prokin54', coins: 20_000 },
   { code: 'milenatrump', coins: 100_000 },
   { code: 'rustamalban', energy: 200 },
+  // Энергия отдельных режимов Play.
+  { code: 'eggmoney', energy: 200, energyMode: 'catch' },
+  { code: 'pantera', energy: 200, energyMode: 'fox' },
+  { code: 'gustavo', energy: 200, energyMode: 'run' },
 ]
 
 export function normalizeCode(raw: string): string {

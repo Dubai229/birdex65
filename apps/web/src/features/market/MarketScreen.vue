@@ -15,6 +15,7 @@ import CoinText from '@/components/CoinText.vue'
 import CoinBalance from '@/components/CoinBalance.vue'
 import FarmBackdrop from '@/components/FarmBackdrop.vue'
 import { playSound } from '@/services/audio'
+import { birdPointsForSale, EGGS_PER_BIRD_POINT } from '@/economy/season'
 import { t } from '@/i18n'
 
 const game = useGameStore()
@@ -26,6 +27,11 @@ const amount = ref(total.value)
 watch(total, (v) => (amount.value = clampSellAmount(amount.value, v)))
 
 const coins = computed(() => sellValue(amount.value))
+/** Сколько BIRD Points даст эта продажа (1 за каждые 100 проданных яиц, остаток копится). */
+const soldEggs = computed(() => game.state?.stats.soldEggs ?? 0)
+const points = computed(() => birdPointsForSale(soldEggs.value, soldEggs.value + amount.value))
+/** Сколько яиц ещё продать до следующего очка. */
+const toNextPoint = computed(() => EGGS_PER_BIRD_POINT - ((soldEggs.value + amount.value) % EGGS_PER_BIRD_POINT))
 const step = computed(() => Math.max(1, Math.round(total.value / 20)))
 /** Заполнение ползунка в % — для золотой полосы слева от бегунка. */
 const fill = computed(() => (total.value > 0 ? (amount.value / total.value) * 100 : 0))
@@ -55,6 +61,9 @@ async function sell() {
   const res = await game.sellEggs(amount.value)
   if (res) {
     ui.toast(t('market.sold', { eggs: formatNumber(res.eggsSold), coins: formatNumber(res.coinsReceived) }), 'success')
+    if (res.birdPointsAwarded > 0) {
+      setTimeout(() => ui.toast(t('market.pointsGot', { n: formatNumber(res.birdPointsAwarded) }), 'success'), 350)
+    }
     amount.value = game.balance?.eggs ?? 0
   }
 }
@@ -125,6 +134,10 @@ async function sell() {
       <div class="gain" :class="{ bump }" @animationend="bump = false">
         <CoinIcon :size="40" class="gain-coin" />
         <span>{{ formatNumber(coins) }}</span>
+      </div>
+      <div class="bp">
+        <span v-if="points > 0" class="bp-gain">+{{ formatNumber(points) }} 💎 {{ t('season.pointsShort') }}</span>
+        <span v-else class="muted">{{ t('market.pointsNext', { n: formatNumber(toNextPoint) }) }}</span>
       </div>
       <PrimaryButton variant="gold" :disabled="amount <= 0" :loading="game.pending === 'sell'" @click="sell">
         {{ total > 0 ? t('market.sell') : t('market.empty') }}
@@ -200,6 +213,10 @@ async function sell() {
 }
 .chip.on { background: linear-gradient(180deg, #ffcf5a, var(--gold)); border-color: var(--gold-dark); color: #4a2a05; }
 .chip:disabled { opacity: 0.4; }
+
+/* BIRD Points за продажу */
+.bp { font-size: 13px; font-weight: 800; text-align: center; }
+.bp-gain { color: #8fd3ff; text-shadow: 0 0 8px rgba(120, 200, 255, 0.5); }
 
 /* Чек */
 .receipt {

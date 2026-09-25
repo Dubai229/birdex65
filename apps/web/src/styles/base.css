@@ -31,6 +31,18 @@ input { font: inherit; }
   gap: 12px;
 }
 
+/* Верхняя строка в играх Play: без рамки-карточки, еле заметная тёмная подложка.
+   Слева яйца, по центру время/счёт, справа сердечки. */
+.hud {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 14px; font-weight: 900;
+  background: rgba(0, 0, 0, 0.18); border: 1px solid rgba(0, 0, 0, 0.28);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.hud > :first-child { justify-self: start; }
+.hud > :nth-child(2) { justify-self: center; }
+.hud > :last-child { justify-self: end; }
+
 .screen-title { margin: 4px 0 0; font-size: 22px; font-weight: 900; }
 .muted { color: var(--text-secondary); }
 .row { display: flex; align-items: center; gap: 8px; }

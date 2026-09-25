@@ -11,6 +11,7 @@ import type { GameState } from '@/types/game'
 import { useUiStore } from './ui'
 import { playSound } from '@/services/audio'
 import { haptics } from '@/services/haptics'
+import { modeEnergyNow, type ExtraMode } from '@/economy/modes'
 import { t } from '@/i18n'
 
 export const useGameStore = defineStore('game', () => {
@@ -52,6 +53,12 @@ export const useGameStore = defineStore('game', () => {
       storageCapacity: s.balance.storageCapacity,
     })
   })
+
+  /** Энергия режима Лисы / Бомбы (у каждого своя, восстанавливается за 8 ч). */
+  function modeEnergy(mode: ExtraMode): number {
+    const e = state.value?.modeEnergy?.[mode]
+    return e ? modeEnergyNow(e, now.value) : 0
+  }
 
   const energy = computed(() => {
     const s = state.value
@@ -147,13 +154,14 @@ export const useGameStore = defineStore('game', () => {
     return true
   }
 
-  async function buyEnergy() {
-    const res = await run('buy-energy', () => api.buyEnergy())
-    if (!res) return null
-    state.value = res.state
+  /** Прокачать энергию режима Лисы / Бомбы. */
+  async function upgradeModeEnergy(mode: ExtraMode) {
+    const res = await run(`energy:${mode}`, () => api.upgradeModeEnergy(mode))
+    if (!res) return false
+    state.value = res
     playSound('buyEnergy')
     haptics.success()
-    return res
+    return true
   }
 
   async function upgradeStorage() {
@@ -171,7 +179,7 @@ export const useGameStore = defineStore('game', () => {
     state.value = res.state
     playSound('reward')
     haptics.success()
-    return { coins: res.coins, energy: res.energy }
+    return { coins: res.coins, energy: res.energy, energyMode: res.energyMode }
   }
 
   async function displayChicken(id: string) {
@@ -229,8 +237,8 @@ export const useGameStore = defineStore('game', () => {
   return {
     state, loading, pending, now,
     profile, balance, season, chickens, perHour, displayedChicken, readyToCollect, energy,
-    ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy, buyEnergy, upgradeStorage, redeemCode,
+    ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy, upgradeModeEnergy, upgradeStorage, redeemCode,
     displayChicken, claimReward, renameFarm, claimReferral, verifyChannelSubscription, claimChannelBonus,
-    applyState, stopClock,
+    applyState, stopClock, modeEnergy,
   }
 })

@@ -1,3 +1,4 @@
+import type { ExtraMode, ModeEnergy } from '@/economy/modes'
 // Общие типы игры. Позже переедут в packages/shared, когда появится бэкенд.
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
@@ -56,6 +57,8 @@ export interface PlayerProfile {
 export interface PlayerStats {
   /** Всего монет получено с продажи яиц (с этого друг даёт 12% пригласившему). */
   soldCoins: number
+  /** Всего продано яиц (за каждые 100 — 1 BIRD Point). */
+  soldEggs?: number
   /** Рекорд яиц за одну игру в Play. */
   bestPlay: number
 }
@@ -97,6 +100,8 @@ export interface GameState {
   events: EventState
   season: SeasonState
   stats: PlayerStats
+  /** Отдельная энергия режимов Play (Лисы, Бомбы). */
+  modeEnergy: Record<ExtraMode, ModeEnergy>
   version: number
 }
 

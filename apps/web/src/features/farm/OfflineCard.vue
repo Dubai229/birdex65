@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
@@ -21,7 +21,6 @@ const full = computed(() => {
   const b = game.balance
   return !!b && b.eggs >= b.storageCapacity
 })
-const lastActivity = ref<{ eggs: number; points: number } | null>(null)
 
 async function collect() {
   // Нечего собирать — звук ошибки и тряска кнопки (без запроса на сервер).
@@ -34,7 +33,6 @@ async function collect() {
   }
   const res = await game.collect()
   if (res && res.collected > 0) {
-    lastActivity.value = { eggs: res.collected, points: res.birdPointsAwarded }
     emit('collected', res.collected)
   }
 }
@@ -68,16 +66,6 @@ async function collect() {
         :color="full ? 'var(--red-accent)' : 'var(--egg-shell)'"
       />
     </div>
-    <div v-if="lastActivity" class="points">
-      <div class="row">
-        <span class="muted small">{{ t('farm.activity') }}</span>
-        <span class="gain">+{{ formatNumber(lastActivity.points) }} 💎 {{ t('season.pointsShort') }}</span>
-      </div>
-      <div class="row">
-        <span class="muted small">{{ t('season.balance') }}</span>
-        <span class="total">{{ formatNumber(game.season?.points ?? 0) }} 💎</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -87,6 +75,4 @@ async function collect() {
 .amount { display: flex; align-items: center; gap: 6px; font-size: 26px; font-weight: 900; }
 .empty :deep(.btn) { filter: saturate(0.5) brightness(0.8); }
 .storage { display: flex; flex-direction: column; gap: 4px; }
-.points { padding-top: 2px; display: flex; flex-direction: column; gap: 4px; }
-.gain, .total { font-size: 13px; font-weight: 900; color: var(--gold); }
 </style>
