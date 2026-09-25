@@ -1,29 +1,33 @@
 <script setup lang="ts">
 // Верх экрана: название фермы, уровень, монеты, яйца + кнопки Награда/Рейтинг/Друзья/Настройки.
-import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { rewardStatus, msUntilReward } from '@/economy/reward'
-import { formatDuration } from '@/economy/format'
 import { xpForLevel } from '@/services/mockState'
 import ResourcePill from './ResourcePill.vue'
+import EggIcon from './EggIcon.vue'
+import DailyRewardTile from './DailyRewardTile.vue'
+import HeaderTile from './HeaderTile.vue'
+import { ASSETS } from '@/config/assets'
+import { playSound } from '@/services/audio'
+import type { SheetId } from '@/types/game'
 import ProgressBar from './ProgressBar.vue'
 import { t } from '@/i18n'
 
 const game = useGameStore()
 const ui = useUiStore()
 
-const rewardReady = computed(() => game.state && rewardStatus(game.state.reward, game.now) === 'ready')
-const rewardLabel = computed(() => {
-  if (!game.state || rewardReady.value) return t('header.reward')
-  return formatDuration(msUntilReward(game.state.reward, game.now))
-})
+/** Открыть окно шапки со звуком. */
+function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') {
+  playSound(sound, 0.7)
+  ui.openSheet(sheet)
+}
+
 </script>
 
 <template>
   <header v-if="game.state" class="header">
     <div class="top row">
-      <button class="profile row" @click="ui.openSheet('settings')">
+      <button class="profile row" @click="open('settings', 'settings')">
         <div class="ava">🧑‍🌾</div>
         <div class="info">
           <div class="farm-name">{{ game.profile?.farmName }}</div>
@@ -33,23 +37,27 @@ const rewardLabel = computed(() => {
       </button>
       <div class="pills">
         <ResourcePill icon="🪙" :value="game.balance?.coins ?? 0" plus @plus="ui.setTab('market')" />
-        <ResourcePill icon="🥚" :value="game.balance?.eggs ?? 0" :max="game.balance?.storageCapacity" />
+        <ResourcePill :value="game.balance?.eggs ?? 0" :max="game.balance?.storageCapacity">
+          <template #icon><EggIcon :size="22" /></template>
+        </ResourcePill>
       </div>
-      <button class="gear" @click="ui.openSheet('settings')">⚙️</button>
+      <button class="gear" :aria-label="t('settings.title')" @click="open('settings', 'settings')">⚙️</button>
     </div>
 
     <div class="quick">
-      <button class="qbtn card" :class="{ glow: rewardReady }" @click="ui.openSheet('reward')">
-        <span class="qi">📅</span>
-        <span class="ql">{{ rewardLabel }}</span>
-        <span v-if="rewardReady" class="dot" />
-      </button>
-      <button class="qbtn card" @click="ui.openSheet('rating')">
-        <span class="qi">🏆</span><span class="ql">{{ t('header.rating') }}</span>
-      </button>
-      <button class="qbtn card" @click="ui.openSheet('friends')">
-        <span class="qi">👥</span><span class="ql">{{ t('header.friends') }}</span>
-      </button>
+      <DailyRewardTile @open="open('reward', 'openCalendar')" />
+      <HeaderTile
+        :src="ASSETS.ui.rating"
+        :label="t('header.rating')"
+        fallback-icon="🏆"
+        @click="open('rating', 'openPanel')"
+      />
+      <HeaderTile
+        :src="ASSETS.ui.friends"
+        :label="t('header.friends')"
+        fallback-icon="👥"
+        @click="open('friends', 'openPanel')"
+      />
     </div>
   </header>
 </template>
@@ -58,7 +66,7 @@ const rewardLabel = computed(() => {
 .header {
   position: sticky; top: 0; z-index: 20;
   padding: calc(var(--safe-top) + 8px) 12px 8px;
-  background: linear-gradient(180deg, var(--background-dark) 70%, transparent);
+  background: linear-gradient(180deg, rgba(27, 19, 13, 0.85) 0%, rgba(27, 19, 13, 0.4) 70%, transparent);
 }
 .top { gap: 8px; }
 .profile { text-align: left; gap: 8px; min-width: 0; flex: 1; }
@@ -71,9 +79,9 @@ const rewardLabel = computed(() => {
 .lvl { font-size: 11px; color: var(--text-secondary); }
 .pills { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .gear { font-size: 22px; padding: 4px; }
-.quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-.qbtn { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; font-size: 13px; }
-.qi { font-size: 18px; }
-.qbtn.glow { border-color: var(--gold); }
-.dot { position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--red-accent); }
+/* Три одинаковые плашки в ряд (календарь, рейтинг, друзья), пропорции как у картинок. */
+.quick {
+  --tile-ratio: 600 / 225;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; align-items: start;
+}
 </style>

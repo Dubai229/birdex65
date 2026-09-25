@@ -8,6 +8,7 @@ import { chickenProduction } from '@/economy/production'
 import { upgradeCost, isMaxLevel } from '@/economy/upgrade'
 import { formatNumber } from '@/economy/format'
 import ChickenAvatar from '@/components/ChickenAvatar.vue'
+import EggIcon from '@/components/EggIcon.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import { t } from '@/i18n'
 
@@ -28,15 +29,23 @@ const isDisplayed = computed(() => owned.value && owned.value.id === game.displa
 
 <template>
   <div class="card details">
-    <div class="pic"><ChickenAvatar :chicken-key="chickenKey" :size="130" :locked="!owned" /></div>
+    <div class="pic">
+      <!-- Обёртка нужна: у самой курицы своя бесконечная анимация дыхания,
+           она мешала Vue понять, когда закончилась смена (картинка пропадала). -->
+      <Transition name="pop" mode="out-in">
+        <div :key="chickenKey" class="pic-inner">
+          <ChickenAvatar :chicken-key="chickenKey" :size="130" :locked="!owned" />
+        </div>
+      </Transition>
+    </div>
     <div class="info">
       <div class="title">{{ def.name }}</div>
-      <div class="muted small">{{ t(`rarity.${def.rarity}`) }} · {{ t('chickens.level', { n: level }) }}</div>
+      <div class="muted small">{{ t(`rarity.${def.rarity}`) }} · {{ t('chickens.levelOf', { n: level, max: def.maxLevel }) }}</div>
 
       <div class="muted small">{{ t('chickens.income') }}</div>
       <div class="row val">
-        🥚 {{ prod }} / ч
-        <span v-if="owned && !maxed" class="plus">+{{ nextProd - prod }}</span>
+        <EggIcon :size="20" /> {{ formatNumber(prod) }} / ч
+        <span v-if="owned && !maxed" class="plus">+{{ formatNumber(nextProd - prod) }}</span>
       </div>
 
       <template v-if="owned">
@@ -70,6 +79,15 @@ const isDisplayed = computed(() => owned.value && owned.value.id === game.displa
 .pic { flex: 0 0 130px; display: flex; align-items: flex-end; justify-content: center; }
 .info { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .title { font-size: 20px; font-weight: 900; }
+/* Переключение курицы в деталях — мягкий "поп". */
+.pic-inner { display: flex; align-items: flex-end; justify-content: center; }
+.pop-leave-active { transition: transform 0.12s ease-in, opacity 0.12s; }
+.pop-leave-to { transform: scale(0.7); opacity: 0; }
+.pop-enter-active { animation: pop 0.4s cubic-bezier(0.25, 1.6, 0.5, 1) both; }
+@keyframes pop {
+  0% { transform: scale(0.5) translateY(12px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
 .small { font-size: 12px; }
 .val { font-size: 18px; font-weight: 900; }
 .plus { color: var(--green-success); font-size: 14px; }

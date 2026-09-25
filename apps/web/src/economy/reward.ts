@@ -1,26 +1,31 @@
+// Ежедневная награда: 1 раз за календарный день (по ECONOMY.rewardTimeZone).
+// Серия 7 дней. Пропустил день — серия сбрасывается на День 1.
+
 import { ECONOMY } from '@/config/economy'
 import type { RewardState } from '@/types/game'
-
-const HOUR_MS = 3_600_000
+import { dayKey, daysBetween, msUntilNextDay } from './dayClock'
 
 export type RewardStatus = 'ready' | 'wait'
 
 export function rewardStatus(state: RewardState, now: number): RewardStatus {
   if (state.lastClaimAt === null) return 'ready'
-  return now - state.lastClaimAt >= ECONOMY.rewardCooldownHours * HOUR_MS ? 'ready' : 'wait'
+  return dayKey(state.lastClaimAt) === dayKey(now) ? 'wait' : 'ready'
 }
 
-/** Сколько мс до следующей награды. */
+/** Сколько мс до следующей награды (0 — можно забрать сейчас). */
 export function msUntilReward(state: RewardState, now: number): number {
-  if (state.lastClaimAt === null) return 0
-  return Math.max(0, state.lastClaimAt + ECONOMY.rewardCooldownHours * HOUR_MS - now)
+  return rewardStatus(state, now) === 'ready' ? 0 : msUntilNextDay(now)
 }
 
-/** День серии, который будет выдан (сбрасывается, если пропустил слишком долго). */
+/**
+ * Индекс дня серии (0..6), который будет выдан / показан как текущий.
+ * Забирал вчера → серия продолжается. Пропустил хотя бы день → с начала.
+ */
 export function effectiveStreakDay(state: RewardState, now: number): number {
   if (state.lastClaimAt === null) return 0
-  const missed = now - state.lastClaimAt > ECONOMY.rewardResetHours * HOUR_MS
-  return missed ? 0 : state.streakDay
+  const gap = daysBetween(dayKey(state.lastClaimAt), dayKey(now))
+  if (gap > 1 && ECONOMY.rewardResetOnMiss) return 0
+  return state.streakDay
 }
 
 export function rewardAmount(day: number): number {

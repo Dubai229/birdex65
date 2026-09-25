@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { formatNumber } from '@/economy/format'
 
-defineProps<{ icon: string; value: number; max?: number; plus?: boolean }>()
+defineProps<{ icon?: string; value: number; max?: number; plus?: boolean }>()
 defineEmits<{ plus: [] }>()
 </script>
 
 <template>
   <div class="pill">
-    <span class="icon">{{ icon }}</span>
+    <span class="icon"><slot name="icon">{{ icon }}</slot></span>
     <span class="value">
       {{ formatNumber(value) }}<span v-if="max !== undefined" class="max"> / {{ formatNumber(max) }}</span>
     </span>
@@ -22,7 +22,7 @@ defineEmits<{ plus: [] }>()
   background: rgba(0, 0, 0, 0.45); border: 2px solid var(--surface-wood);
   min-height: 34px;
 }
-.icon { font-size: 20px; line-height: 1; }
+.icon { font-size: 20px; line-height: 1; display: inline-flex; }
 .value { font-weight: 900; font-size: 16px; white-space: nowrap; }
 .max { color: var(--text-secondary); font-size: 13px; }
 .plus {

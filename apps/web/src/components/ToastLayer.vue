@@ -13,7 +13,7 @@ const ui = useUiStore()
 
 <style scoped>
 .toasts {
-  position: fixed; left: 0; right: 0; top: calc(var(--safe-top) + 110px); z-index: 60;
+  position: fixed; left: 0; right: 0; top: calc(var(--safe-top) + 150px); z-index: 60;
   display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
 }
 .toast {
