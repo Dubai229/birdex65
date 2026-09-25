@@ -52,7 +52,11 @@ function poke(ev: PointerEvent) {
 <template>
   <section ref="scene" class="scene">
     <div class="rate"><EggIcon :size="16" /> {{ t('farm.perHour', { n: perHour }) }}</div>
-    <button class="pick" @click="$emit('pick')">🔄 {{ t('farm.chooseChicken') }}</button>
+    <button class="pick" @click="$emit('pick')">
+      <span class="pick-ava"><ChickenAvatar :chicken-key="chickenKey ?? 'farm_hen'" :size="26" :idle="false" /></span>
+      <span class="pick-text">{{ t('farm.chooseChicken') }}</span>
+      <span class="pick-arrows" aria-hidden="true">⇄</span>
+    </button>
 
     <button v-if="bgTotal > 1" class="arrow left" :aria-label="t('farm.prevBg')" @click="$emit('prevBg')">‹</button>
     <button v-if="bgTotal > 1" class="arrow right" :aria-label="t('farm.nextBg')" @click="$emit('nextBg')">›</button>
@@ -108,12 +112,27 @@ function poke(ev: PointerEvent) {
   75% { transform: translateX(-50%) translateY(0) scale(1.04, 0.96); }
   100% { transform: translateX(-50%) scale(1, 1); }
 }
-.rate, .pick {
-  position: absolute; top: 4px; padding: 6px 10px; border-radius: 99px;
-  background: rgba(0, 0, 0, 0.5); font-size: 13px;
+.rate {
+  position: absolute; top: 4px; left: 0; padding: 6px 10px; border-radius: 99px;
+  background: rgba(0, 0, 0, 0.5); font-size: 13px; display: flex; align-items: center; gap: 4px;
 }
-.rate { left: 0; display: flex; align-items: center; gap: 4px; }
-.pick { right: 0; }
+/* Кнопка "Выбрать курицу": деревянная плашка в золотой рамке с портретом текущей курицы. */
+.pick {
+  position: absolute; top: 0; right: 0; z-index: 3;
+  display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px;
+  border-radius: 14px; border: 2px solid var(--gold);
+  background: linear-gradient(180deg, #7a5130 0%, #4a2f1a 100%);
+  box-shadow: 0 3px 0 #2a1a0d, inset 0 1px 0 rgba(255, 230, 160, 0.35), 0 0 12px rgba(245, 184, 46, 0.35);
+  color: var(--cream); font-size: 13px; font-weight: 900; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.pick:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a1a0d, inset 0 1px 0 rgba(255, 230, 160, 0.35); }
+.pick-ava {
+  width: 30px; height: 30px; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, #ffe7a3, #d9982a 70%, #9a6412);
+  box-shadow: inset 0 0 0 2px rgba(255, 245, 210, 0.6);
+}
+.pick-arrows { color: var(--gold); font-size: 15px; line-height: 1; }
 .arrow {
   position: absolute; top: 52%; transform: translateY(-50%);
   width: 40px; height: 56px; border-radius: var(--radius-sm);

@@ -74,6 +74,8 @@ export const en = {
     rate: '1 egg = {n} coins',
     amount: 'Amount to sell',
     willGet: 'You will get',
+    pointsNext: '{n} more eggs to +1 💎 BIRD Point',
+    pointsGot: '+{n} 💎 BIRD Points for selling',
     sold: 'Sold {eggs} eggs -> +{coins} coins',
     empty: 'No eggs to sell',
   },

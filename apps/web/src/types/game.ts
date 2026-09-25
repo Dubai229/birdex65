@@ -56,6 +56,8 @@ export interface PlayerProfile {
 export interface PlayerStats {
   /** Всего монет получено с продажи яиц (с этого друг даёт 12% пригласившему). */
   soldCoins: number
+  /** Всего продано яиц (за каждые 100 — 1 BIRD Point). */
+  soldEggs?: number
   /** Рекорд яиц за одну игру в Play. */
   bestPlay: number
 }

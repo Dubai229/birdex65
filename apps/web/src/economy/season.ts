@@ -1,8 +1,16 @@
 export const SEASON_DAYS = 120
 export const SEASON_MS = SEASON_DAYS * 24 * 60 * 60 * 1000
 
-export function birdPointsForCollect(eggs: number): number {
-  return eggs > 0 ? Math.max(1, Math.ceil(eggs / 100)) : 0
+/** Сколько проданных яиц дают 1 BIRD Point. */
+export const EGGS_PER_BIRD_POINT = 100
+
+/**
+ * BIRD Points за продажу: 1 очко за каждые 100 проданных яиц.
+ * Считаем от общего числа проданных яиц, поэтому остаток не теряется:
+ * продал 60, потом 40 — на второй продаже придёт 1 очко.
+ */
+export function birdPointsForSale(soldBefore: number, soldNow: number): number {
+  return Math.floor(soldNow / EGGS_PER_BIRD_POINT) - Math.floor(soldBefore / EGGS_PER_BIRD_POINT)
 }
 
 export function seasonRank(points: number): number {

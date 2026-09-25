@@ -3,8 +3,8 @@
 
 import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
-export interface CollectResult { collected: number; birdPointsAwarded: number; state: GameState }
-export interface SellResult { eggsSold: number; coinsReceived: number; state: GameState }
+export interface CollectResult { collected: number; state: GameState }
+export interface SellResult { eggsSold: number; coinsReceived: number; birdPointsAwarded: number; state: GameState }
 export interface RewardResult { coins: number; day: number; state: GameState }
 export interface LeaderboardResult {
   top: LeaderboardEntry[]

@@ -60,6 +60,7 @@ export function syncDerived(state: GameState): void {
   }
   // Старые сохранения без статистики — дополняем, прогресс не сбрасывается.
   state.stats ??= { soldCoins: 0, bestPlay: 0 }
+  state.stats.soldEggs ??= 0
   state.profile.level = levelForXp(state.profile.xp)
   state.balance.storageCapacity = storageCapacity(state.storageLevel)
   state.balance.energyMax = energyMaxForLevel(state.energyLevel)

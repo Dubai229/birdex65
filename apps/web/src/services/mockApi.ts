@@ -11,7 +11,7 @@ import { rewardStatus, effectiveStreakDay, rewardAmount } from '@/economy/reward
 import { maxPlausibleEggs } from '@/economy/playDifficulty'
 import { energyBuyCost, energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
 import { storageUpgradeCost, STORAGE_MAX_LEVEL } from '@/economy/storage'
-import { birdPointsForCollect } from '@/economy/season'
+import { birdPointsForSale } from '@/economy/season'
 import { findPromo, normalizeCode } from '@/config/promo'
 import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
@@ -115,9 +115,7 @@ export const mockApi: GameApi = {
     })
     s.balance.eggs += collected
     s.lastProductionAt = now
-    const birdPointsAwarded = birdPointsForCollect(collected)
-    s.season.points += birdPointsAwarded
-    return { collected, birdPointsAwarded, state: commit() }
+    return { collected, state: commit() }
   },
 
   async sellEggs(amount) {
@@ -130,7 +128,12 @@ export const mockApi: GameApi = {
     s.balance.eggs -= eggs
     s.balance.coins += coins
     s.stats.soldCoins += coins // с этого пригласившему идёт 12%
-    return { eggsSold: eggs, coinsReceived: coins, state: commit() }
+    // BIRD Points: 1 за каждые 100 проданных яиц (остаток копится).
+    const soldBefore = s.stats.soldEggs ?? 0
+    s.stats.soldEggs = soldBefore + eggs
+    const birdPointsAwarded = birdPointsForSale(soldBefore, s.stats.soldEggs)
+    s.season.points += birdPointsAwarded
+    return { eggsSold: eggs, coinsReceived: coins, birdPointsAwarded, state: commit() }
   },
 
   async buyChicken(key) {

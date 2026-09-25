@@ -74,6 +74,8 @@ export const ru = {
     rate: '1 яйцо = {n} 🪙',
     amount: 'Сколько продать',
     willGet: 'Ты получишь',
+    pointsNext: 'Ещё {n} яиц до +1 💎 BIRD Point',
+    pointsGot: '+{n} 💎 BIRD Points за продажу',
     sold: 'Продано {eggs} яиц → +{coins} 🪙',
     empty: 'Нет яиц для продажи',
   },
