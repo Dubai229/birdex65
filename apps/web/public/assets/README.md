@@ -7,12 +7,14 @@
 |---|---|---|
 | `chickens/` | каждая курица отдельно, прозрачный фон, 512–1024px | PNG / WebP |
 | `eggs/` | `egg.png`, `egg_golden.png`, `basket.png` | PNG |
-| `farm/` | `background.webp` (фон фермы БЕЗ кнопок и текста), `barn.png` | WebP / PNG |
+| `farm/backgrounds/` | фоны фермы `bg_1` … `bg_5` (листаются стрелками). Вертикальные, 1080×1920, без кнопок и текста | WebP / PNG / JPG |
+| `play/` | `play_bg` — фон вкладки Play, 1080×1920 | WebP / PNG / JPG |
+| `farm/` | `barn.png` и другие объекты фермы | PNG |
 | `ui/` | `coin.png` (монетка-птичка), `egg_icon.png`, `energy.png`, иконки вкладок | PNG |
 | `effects/` | частицы, блики, искры, sprite sheets анимаций | PNG |
 
 Имена файлов куриц (уже прописаны в `config/chickens.ts`):
-`farm_hen.png`, `red_hen.png`, `speckled_hen.png`, `black_hen.png`, `farmer_hen.png`, `golden_hen.png`
+`farm_hen`, `red_hen`, `speckled_hen`, `black_hen`, `farmer_hen`, `golden_hen` (присылай любым именем — я переименую и сожму в .webp)
 
 Анимации: простые (дыхание, моргание, падение, +1) делаются кодом.
 Сложные (снесла яйцо, радуется) — sprite sheet: кадры в одну строку, одинакового размера.

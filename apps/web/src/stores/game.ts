@@ -5,7 +5,8 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, ApiError } from '@/services/api'
 import { getChickenDef } from '@/config/chickens'
-import { accumulatedEggs, farmProductionPerHour, currentEnergy } from '@/economy/production'
+import { accumulatedEggs, farmProductionPerHour } from '@/economy/production'
+import { currentEnergy } from '@/economy/energy'
 import type { GameState } from '@/types/game'
 import { useUiStore } from './ui'
 import { playSound } from '@/services/audio'
@@ -73,6 +74,7 @@ export const useGameStore = defineStore('game', () => {
     } catch (e) {
       const code = e instanceof ApiError ? e.code : 'UNKNOWN'
       useUiStore().toast(t(`errors.${code}`), 'error')
+      playSound('error', 0.7)
       haptics.error()
       await refresh() // после ошибки — всегда берём правду с сервера
       return null
@@ -112,7 +114,6 @@ export const useGameStore = defineStore('game', () => {
     if (!res) return null
     state.value = res.state
     playSound('sell')
-    playSound('coins')
     haptics.success()
     return res
   }
@@ -132,6 +133,15 @@ export const useGameStore = defineStore('game', () => {
     if (!res) return false
     state.value = res
     playSound('upgrade')
+    haptics.success()
+    return true
+  }
+
+  async function upgradeEnergy() {
+    const res = await run('energy', () => api.upgradeEnergy())
+    if (!res) return false
+    state.value = res
+    playSound('buyEnergy')
     haptics.success()
     return true
   }
@@ -162,7 +172,7 @@ export const useGameStore = defineStore('game', () => {
   return {
     state, loading, pending, now,
     profile, balance, chickens, perHour, displayedChicken, readyToCollect, energy,
-    ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken,
+    ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy,
     displayChicken, claimReward, renameFarm, applyState, stopClock,
   }
 })

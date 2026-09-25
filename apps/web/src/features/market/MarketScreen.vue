@@ -7,6 +7,7 @@ import { ECONOMY } from '@/config/economy'
 import { sellValue, eggsForPercent, clampSellAmount } from '@/economy/market'
 import { formatNumber } from '@/economy/format'
 import PrimaryButton from '@/components/PrimaryButton.vue'
+import EggIcon from '@/components/EggIcon.vue'
 import { t } from '@/i18n'
 
 const game = useGameStore()
@@ -66,7 +67,7 @@ async function sell() {
       </div>
 
       <div class="preview">
-        🥚 {{ formatNumber(amount) }} <span class="arrow">→</span> 🪙 {{ formatNumber(coins) }}
+        <EggIcon :size="24" /> {{ formatNumber(amount) }} <span class="arrow">→</span> 🪙 {{ formatNumber(coins) }}
       </div>
 
       <PrimaryButton :disabled="amount <= 0" :loading="game.pending === 'sell'" @click="sell">
@@ -90,6 +91,6 @@ input[type='number'] {
 .slider { width: 100%; accent-color: var(--gold); }
 .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .chip { height: 38px; border-radius: var(--radius-sm); background: var(--surface-wood); font-weight: 900; }
-.preview { text-align: center; font-size: 22px; font-weight: 900; }
+.preview { display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-size: 22px; font-weight: 900; }
 .arrow { color: var(--text-secondary); margin: 0 6px; }
 </style>

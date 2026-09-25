@@ -11,7 +11,8 @@ export interface PlaySessionTicket {
   sessionId: string
   startedAt: number
   expiresAt: number
-  energy: number
+  /** Состояние после списания энергии за попытку. */
+  state: GameState
 }
 
 export interface PlaySessionSummary {
@@ -29,6 +30,7 @@ export interface GameApi {
   sellEggs(amount: number): Promise<SellResult>
   buyChicken(key: string): Promise<GameState>
   upgradeChicken(chickenId: string): Promise<GameState>
+  upgradeEnergy(): Promise<GameState>
   displayChicken(chickenId: string): Promise<GameState>
   claimReward(): Promise<RewardResult>
   startPlay(): Promise<PlaySessionTicket>

@@ -6,7 +6,7 @@
 html, body, #app {
   margin: 0;
   height: 100%;
-  background: var(--background-dark);
+  background: #0e0906;
   color: var(--text-primary);
   font-family: var(--font);
   font-weight: 700;
@@ -35,6 +35,16 @@ input { font: inherit; }
 .muted { color: var(--text-secondary); }
 .row { display: flex; align-items: center; gap: 8px; }
 .spacer { flex: 1; }
+
+/* Горизонтальная тряска — "нельзя" (см. composables/useShake). */
+.shake-x { animation: shake-x 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes shake-x {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(3px); }
+  30%, 50%, 70% { transform: translateX(-5px); }
+  40%, 60% { transform: translateX(5px); }
+}
+@media (prefers-reduced-motion: reduce) { .shake-x { animation: none; } }
 
 @keyframes breathe {
   0%, 100% { transform: scale(1, 1); }

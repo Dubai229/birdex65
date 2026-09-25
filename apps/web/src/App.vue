@@ -4,7 +4,7 @@ import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { useSettingsStore } from '@/stores/settings'
 import { initTelegram } from '@/services/telegram'
-import { playMusic } from '@/services/audio'
+import { playMusic, unlockAudio } from '@/services/audio'
 import type { TabId } from '@/types/game'
 import GameHeader from '@/components/GameHeader.vue'
 import BottomNav from '@/components/BottomNav.vue'
@@ -44,7 +44,14 @@ onMounted(async () => {
   initTelegram()
   await game.load()
   // Браузеры запрещают автоплей до первого касания.
-  window.addEventListener('pointerdown', () => playMusic('farm'), { once: true })
+  window.addEventListener(
+    'pointerdown',
+    () => {
+      unlockAudio()
+      playMusic('farm')
+    },
+    { once: true },
+  )
   document.addEventListener('visibilitychange', onVisible)
 })
 
@@ -60,11 +67,13 @@ onUnmounted(() => {
     <div class="muted">{{ t('common.loading') }}</div>
   </div>
 
-  <template v-else>
-    <GameHeader />
-    <main>
-      <component :is="SCREENS[ui.tab]" />
-    </main>
+  <div v-else class="shell">
+    <div class="scroller">
+      <GameHeader />
+      <main>
+        <component :is="SCREENS[ui.tab]" />
+      </main>
+    </div>
     <BottomNav />
 
     <ChickenPickerSheet />
@@ -73,11 +82,28 @@ onUnmounted(() => {
     <FriendsSheet />
     <SettingsSheet />
     <ToastLayer />
-  </template>
+  </div>
 </template>
 
 <style scoped>
 .loading { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
 .logo { font-size: 80px; animation: bob 1.4s ease-in-out infinite; }
-main { max-width: 520px; margin: 0 auto; }
+/*
+ * Игра всегда в "телефонной" колонке. transform делает .shell точкой отсчёта
+ * для всех position: fixed внутри (фон, нижнее меню, окна) — на широком экране
+ * они не растягиваются на всё окно.
+ */
+.shell {
+  position: relative; height: 100%; max-width: var(--app-width); margin: 0 auto;
+  overflow: hidden; transform: translateZ(0);
+  background: var(--background-dark);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 60px rgba(0, 0, 0, 0.6);
+}
+.scroller {
+  height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  display: flex; flex-direction: column;
+}
+/* main занимает всё место под шапкой — экраны могут растягиваться на полную высоту. */
+main { flex: 1 0 auto; display: flex; flex-direction: column; }
+.scroller::-webkit-scrollbar { display: none; }
 </style>

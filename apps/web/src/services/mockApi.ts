@@ -8,23 +8,25 @@ import { accumulatedEggs, farmProductionPerHour } from '@/economy/production'
 import { upgradeCost, isMaxLevel } from '@/economy/upgrade'
 import { sellValue } from '@/economy/market'
 import { rewardStatus, effectiveStreakDay, rewardAmount } from '@/economy/reward'
-import { maxPlausibleEggs } from '@/economy/combo'
+import { maxPlausibleEggs } from '@/economy/playDifficulty'
+import { energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
 import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
 import { loadSave, writeSave } from './storage'
-import { createNewState, syncEnergy, addXp, clone, SAVE_VERSION } from './mockState'
+import { createNewState, syncEnergy, syncDerived, addXp, clone, SAVE_VERSION } from './mockState'
 import { mockLeaderboard, mockFriends } from './mockSocial'
 
 const LATENCY_MS = 120
 const wait = () => new Promise((r) => setTimeout(r, LATENCY_MS))
 
 let state: GameState | null = null
-let activeSession: PlaySessionTicket | null = null
+let activeSession: Omit<PlaySessionTicket, 'state'> | null = null
 
 function db(): GameState {
   if (!state) {
     const saved = loadSave<GameState>()
     state = saved && saved.version === SAVE_VERSION ? saved : createNewState(Date.now())
+    syncDerived(state)
   }
   return state
 }
@@ -81,8 +83,11 @@ export const mockApi: GameApi = {
     const def = getChickenDef(key)
     if (s.chickens.some((c) => c.key === key)) throw new ApiError('ALREADY_OWNED')
     if (s.balance.coins < def.price) throw new ApiError('NOT_ENOUGH_COINS')
+    // Сначала собираем накопленное по старой ставке.
+    await mockApi.collect()
     s.balance.coins -= def.price
     s.chickens.push({ id: `c_${Date.now()}`, key, level: 1, acquiredAt: Date.now() })
+    syncDerived(s)
     addXp(s, 50)
     return commit()
   },
@@ -99,7 +104,23 @@ export const mockApi: GameApi = {
     await mockApi.collect()
     s.balance.coins -= cost
     chicken.level += 1
+    syncDerived(s)
     addXp(s, 25)
+    return commit()
+  },
+
+  async upgradeEnergy() {
+    await wait()
+    const s = db()
+    if (s.energyLevel >= ENERGY_MAX_LEVEL) throw new ApiError('MAX_LEVEL')
+    const cost = energyUpgradeCost(s.energyLevel)
+    if (s.balance.coins < cost) throw new ApiError('NOT_ENOUGH_COINS')
+    syncEnergy(s, Date.now())
+    s.balance.coins -= cost
+    s.energyLevel += 1
+    syncDerived(s)
+    // +50 к максимуму сразу добавляет и +50 к текущей энергии
+    s.balance.energy = Math.min(s.balance.energyMax, s.balance.energy + ECONOMY.energy.upgradeStep)
     return commit()
   },
 
@@ -128,15 +149,15 @@ export const mockApi: GameApi = {
     const s = db()
     const now = Date.now()
     syncEnergy(s, now)
-    if (s.balance.energy < ECONOMY.energy.costPerEgg) throw new ApiError('NO_ENERGY')
+    if (s.balance.energy < ECONOMY.energy.playCost) throw new ApiError('NO_ENERGY')
+    // Энергия списывается сразу за попытку (50% стартового запаса).
+    s.balance.energy -= ECONOMY.energy.playCost
     activeSession = {
       sessionId: `s_${now}`,
       startedAt: now,
-      expiresAt: now + ECONOMY.play.sessionSeconds * 1000,
-      energy: s.balance.energy,
+      expiresAt: now + ECONOMY.play.maxSessionMinutes * 60_000,
     }
-    commit()
-    return { ...activeSession }
+    return { ...activeSession, state: commit() }
   },
 
   async finishPlay(summary) {
@@ -146,17 +167,15 @@ export const mockApi: GameApi = {
     if (!session || session.sessionId !== summary.sessionId) throw new ApiError('BAD_SESSION')
     activeSession = null // идемпотентность: второй finish той же сессии не пройдёт
     const now = Date.now()
-    const duration = Math.min(now, session.expiresAt + 3000) - session.startedAt
+    const duration = Math.min(now, session.expiresAt) - session.startedAt
     const caught = summary.normalCaught + summary.goldenCaught
-    const plausible = Math.min(maxPlausibleEggs(duration), session.energy)
+    const plausible = maxPlausibleEggs(duration)
     const ratio = caught > 0 ? Math.min(1, plausible / caught) : 0
     const raw =
       summary.normalCaught * ECONOMY.play.normalReward +
       summary.goldenCaught * ECONOMY.play.goldenReward
-    const free = s.balance.storageCapacity - s.balance.eggs
+    const free = Math.max(0, s.balance.storageCapacity - s.balance.eggs)
     const eggsAwarded = Math.max(0, Math.min(Math.floor(raw * ratio), free))
-    syncEnergy(s, now)
-    s.balance.energy = Math.max(0, s.balance.energy - Math.min(caught, plausible))
     s.balance.eggs += eggsAwarded
     addXp(s, Math.ceil(eggsAwarded / 10))
     return { eggsAwarded, state: commit() }

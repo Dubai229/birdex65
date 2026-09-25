@@ -35,14 +35,7 @@ export function accumulatedEggs(params: {
   return Math.min(produced, free)
 }
 
-/** Энергия с учётом восстановления. */
-export function currentEnergy(params: {
-  energy: number
-  energyMax: number
-  energyUpdatedAt: number
-  now: number
-}): number {
-  const { energy, energyMax, energyUpdatedAt, now } = params
-  const regen = ((now - energyUpdatedAt) / 1000) * ECONOMY.energy.regenPerSecond
-  return Math.min(energyMax, Math.floor(energy + Math.max(0, regen)))
+/** Вместимость склада: 8 ч производства, но не меньше минимума. */
+export function storageCapacityFor(perHour: number): number {
+  return Math.max(ECONOMY.minStorageCapacity, Math.ceil(perHour * ECONOMY.offlineCapHours))
 }

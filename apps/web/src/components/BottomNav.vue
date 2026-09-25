@@ -3,22 +3,23 @@ import { useUiStore } from '@/stores/ui'
 import type { TabId } from '@/types/game'
 import { playSound } from '@/services/audio'
 import { t } from '@/i18n'
+import EggIcon from './EggIcon.vue'
+import ChickenAvatar from './ChickenAvatar.vue'
 
 const ui = useUiStore()
 
 const TABS: { id: TabId; icon: string }[] = [
   { id: 'farm', icon: '🏡' },
-  { id: 'play', icon: '🥚' },
-  { id: 'chickens', icon: '🐔' },
+  { id: 'play', icon: 'egg' },
+  { id: 'chickens', icon: 'hen' },
   { id: 'market', icon: '💰' },
   { id: 'shop', icon: '🏪' },
   { id: 'events', icon: '🗺️' },
 ]
 
 function go(id: TabId) {
-  if (ui.tab === id) return
-  playSound('click', 0.4)
-  ui.setTab(id)
+  playSound('click', 0.6)
+  if (ui.tab !== id) ui.setTab(id)
 }
 </script>
 
@@ -31,7 +32,11 @@ function go(id: TabId) {
       :class="{ active: ui.tab === tab.id, play: tab.id === 'play' }"
       @click="go(tab.id)"
     >
-      <span class="icon">{{ tab.icon }}</span>
+      <span class="icon">
+        <EggIcon v-if="tab.icon === 'egg'" :size="24" />
+        <ChickenAvatar v-else-if="tab.icon === 'hen'" chicken-key="golden_hen" :size="28" :idle="false" />
+        <template v-else>{{ tab.icon }}</template>
+      </span>
       <span class="label">{{ t(`tabs.${tab.id}`) }}</span>
     </button>
   </nav>
@@ -51,7 +56,7 @@ function go(id: TabId) {
   color: var(--text-secondary); transition: background 0.15s, transform 0.1s;
 }
 .item:active { transform: scale(0.94); }
-.icon { font-size: 22px; line-height: 1; }
+.icon { font-size: 22px; line-height: 1; height: 28px; display: flex; align-items: center; justify-content: center; }
 .label { font-size: 11px; font-weight: 800; }
 .item.active { background: linear-gradient(180deg, #ffcf5a, var(--gold)); color: #4a2a05; box-shadow: 0 3px 0 var(--gold-dark); }
 .item.play:not(.active) .icon { animation: bob 2.4s ease-in-out infinite; }

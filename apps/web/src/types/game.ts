@@ -8,6 +8,8 @@ export type SheetId = 'reward' | 'rating' | 'friends' | 'settings' | 'chickenPic
 
 /** Статическое описание породы курицы (конфиг, не данные игрока). */
 export interface ChickenDefinition {
+  /** Порядковый номер 1..36 (страница = ceil(n / 9)). */
+  n: number
   key: string
   name: string
   rarity: Rarity
@@ -15,9 +17,10 @@ export interface ChickenDefinition {
   baseProductionPerHour: number
   baseUpgradeCost: number
   maxLevel: number
-  /** Путь к картинке в public/assets/chickens. Пока нет — показываем emoji. */
+  /** Путь к картинке в public/assets/chickens. */
   asset: string
-  emoji: string
+  /** Оттенок заглушки (градусы hue-rotate), пока у курицы нет своей картинки. */
+  tint: number
 }
 
 /** Курица, которой владеет игрок. */
@@ -57,6 +60,8 @@ export interface GameState {
   balance: Balance
   chickens: OwnedChicken[]
   displayedChickenId: string | null
+  /** Уровень прокачки максимума энергии (0 = 300). */
+  energyLevel: number
   lastProductionAt: number
   energyUpdatedAt: number
   reward: RewardState
