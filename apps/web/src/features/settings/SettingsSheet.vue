@@ -1,12 +1,17 @@
 <script setup lang="ts">
 // Настройки: название фермы, звук и музыка (вкл/выкл + громкость), вибрация.
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { useGameStore } from '@/stores/game'
 import { useSettingsStore } from '@/stores/settings'
 import { playSound } from '@/services/audio'
 import BottomSheet from '@/components/BottomSheet.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
+import CoinIcon from '@/components/CoinIcon.vue'
+import { renameCost } from '@/services/mockApi'
+import { formatNumber } from '@/economy/format'
+import { haptics } from '@/services/haptics'
+import { useShake } from '@/composables/useShake'
 import { t } from '@/i18n'
 
 const ui = useUiStore()
@@ -21,6 +26,33 @@ watch(
   },
 )
 
+/** Первая смена названия бесплатная, дальше — 1 000 монет. */
+const cost = computed(() => (game.state ? renameCost(game.state) : 0))
+const changed = computed(() => name.value.trim() !== '' && name.value.trim() !== game.profile?.farmName)
+
+const { shaking, shake } = useShake()
+
+/**
+ * Сохранить название. Не изменено — ошибка и тряска кнопки с ценой.
+ * Не хватает монет — ошибку показывает стор, кнопка тоже трясётся.
+ */
+async function saveName() {
+  if (!changed.value) {
+    playSound('error', 0.7)
+    haptics.error()
+    ui.toast(t('settings.nameUnchanged'), 'error')
+    shake()
+    return
+  }
+  const paid = cost.value
+  if (await game.renameFarm(name.value)) {
+    playSound(paid > 0 ? 'buy' : 'click', 0.7)
+    ui.toast(t('settings.renamed'), 'success')
+  } else {
+    shake()
+  }
+}
+
 // Отпустил ползунок звуков — короткий "клик", чтобы услышать новую громкость.
 function previewSound() {
   if (settings.sound) playSound('click', 0.8)
@@ -32,10 +64,14 @@ function previewSound() {
     <label class="muted small" for="farm-name">{{ t('settings.farmName') }}</label>
     <div class="row">
       <input id="farm-name" v-model="name" maxlength="24" class="input" />
-      <PrimaryButton small :loading="game.pending === 'rename'" @click="game.renameFarm(name)">
-        {{ t('settings.save') }}
-      </PrimaryButton>
+      <div class="save" :class="{ 'shake-x': shaking, dim: !changed }" @animationend="shaking = false">
+        <PrimaryButton small :loading="game.pending === 'rename'" @click="saveName">
+          <span v-if="cost > 0" class="price"><CoinIcon :size="16" /> {{ formatNumber(cost) }}</span>
+          <template v-else>{{ t('settings.save') }}</template>
+        </PrimaryButton>
+      </div>
     </div>
+    <div class="muted tiny">{{ cost > 0 ? t('settings.renamePaid', { n: formatNumber(cost) }) : t('settings.renameFree') }}</div>
 
     <div class="card opt">
       <div class="muted small">{{ t('settings.language') }}</div>
@@ -106,9 +142,13 @@ function previewSound() {
 </template>
 
 <style scoped>
+.save { flex: 0 0 auto; }
+.save.dim :deep(.btn) { filter: saturate(0.6) brightness(0.85); }
+.price { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tiny { font-size: 11px; margin-top: -4px; }
 .small { font-size: 12px; }
 .input {
-  flex: 1; height: 40px; padding: 0 12px; border-radius: var(--radius-sm);
+  flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--radius-sm);
   border: 2px solid var(--surface-wood); background: rgba(0, 0, 0, 0.4); color: var(--text-primary);
 }
 .opt { padding: 12px; display: flex; flex-direction: column; gap: 10px; }

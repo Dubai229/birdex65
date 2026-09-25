@@ -62,8 +62,8 @@ function onCollected(n: number) {
     <div class="bottom">
       <OfflineCard @collected="onCollected" />
       <div class="actions">
-        <button class="card action" @click="ui.setTab('market')"><CoinIcon :size="22" /> {{ t('farm.goSell') }}</button>
-        <button class="card action" @click="ui.setTab('play')"><EggIcon :size="20" /> {{ t('farm.goPlay') }}</button>
+        <button class="card action" @click="playSound('sellUi', 0.7); ui.setTab('market')"><CoinIcon :size="22" /> {{ t('farm.goSell') }}</button>
+        <button class="card action" @click="playSound('click', 0.6); ui.setTab('play')"><EggIcon :size="20" /> {{ t('farm.goPlay') }}</button>
       </div>
     </div>
   </div>

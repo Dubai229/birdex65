@@ -17,7 +17,7 @@ import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
 import { loadSave, writeSave } from './storage'
 import { createNewState, syncEnergy, syncDerived, addXp, clone, SAVE_VERSION } from './mockState'
-import { cloudEnabled, cloudLogin, cloudSave, cloudLeaderboard, cloudFriends, cloudClaimReferral } from './cloud'
+import { cloudEnabled, cloudLogin, cloudSave, cloudLeaderboard, cloudFriends, cloudClaimReferral, cloudChannelCheck, cloudChannelClaim } from './cloud'
 import { setSaveOwner } from './storage'
 import { getTelegramUser } from './telegram'
 
@@ -25,6 +25,11 @@ const LATENCY_MS = 120
 const wait = () => new Promise((r) => setTimeout(r, LATENCY_MS))
 
 let state: GameState | null = null
+
+/** Сколько стоит следующая смена названия фермы. */
+export function renameCost(s: Pick<GameState, 'profile'>): number {
+  return (s.profile.renames ?? 0) >= 1 ? ECONOMY.renameCost : 0
+}
 let activeSession: Omit<PlaySessionTicket, 'state'> | null = null
 
 let booted: Promise<void> | null = null
@@ -297,20 +302,46 @@ export const mockApi: GameApi = {
     return { coins, state: commit() }
   },
 
+  // Подписку на канал проверяет сервер (спрашивает Telegram), он же выдаёт бонус один раз.
+  // Вне Telegram (обычный браузер) — упрощённая проверка для теста.
   async verifyChannelSubscription() {
-    await wait()
     const s = db()
-    // Mock API: настоящую проверку Telegram-подписки позже должен заменить бэкенд.
+    if (cloudEnabled()) {
+      const res = await cloudChannelCheck()
+      s.events.channelSubscribed = res.subscribed
+      if (res.claimed) s.events.channelBonusClaimed = true
+      commit()
+      if (!res.subscribed) throw new ApiError('CHANNEL_NOT_SUBSCRIBED')
+      return { subscribed: true, state: clone(s) }
+    }
+    await wait()
     s.events.channelSubscribed = true
     return { subscribed: true, state: commit() }
   },
 
   async claimChannelBonus() {
-    await wait()
     const s = db()
-    if (!s.events.channelSubscribed) throw new ApiError('CHANNEL_NOT_SUBSCRIBED')
     if (s.events.channelBonusClaimed) throw new ApiError('CHANNEL_BONUS_CLAIMED')
-    const coins = 1000
+    let coins = 1000
+    if (cloudEnabled()) {
+      try {
+        coins = (await cloudChannelClaim()).coins
+      } catch (e) {
+        // Сервер говорит "уже забран" — запоминаем, чтобы кнопка больше не предлагала.
+        if (e instanceof ApiError && e.code === 'CHANNEL_BONUS_CLAIMED') {
+          s.events.channelBonusClaimed = true
+          commit()
+        }
+        if (e instanceof ApiError && e.code === 'CHANNEL_NOT_SUBSCRIBED') {
+          s.events.channelSubscribed = false
+          commit()
+        }
+        throw e
+      }
+    } else {
+      await wait()
+      if (!s.events.channelSubscribed) throw new ApiError('CHANNEL_NOT_SUBSCRIBED')
+    }
     s.events.channelBonusClaimed = true
     s.balance.coins += coins
     return { coins, state: commit() }
@@ -320,7 +351,14 @@ export const mockApi: GameApi = {
     await wait()
     const clean = name.trim().slice(0, 24)
     if (!clean) throw new ApiError('BAD_NAME')
-    db().profile.farmName = clean
+    const s = db()
+    if (clean === s.profile.farmName) return commit() // то же имя — ничего не списываем
+    // Первая смена бесплатная, дальше — ECONOMY.renameCost монет.
+    const cost = renameCost(s)
+    if (s.balance.coins < cost) throw new ApiError('NOT_ENOUGH_COINS')
+    s.balance.coins -= cost
+    s.profile.farmName = clean
+    s.profile.renames = (s.profile.renames ?? 0) + 1
     return commit()
   },
 }

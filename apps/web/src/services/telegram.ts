@@ -56,3 +56,10 @@ export function shareInviteLink(link: string, text: string): void {
   if (app?.openTelegramLink) app.openTelegramLink(url)
   else window.open(url, '_blank')
 }
+
+/** Открыть ссылку t.me внутри Telegram (канал, чат). В браузере — новая вкладка. */
+export function openTgLink(url: string): void {
+  const app = tg()
+  if (app?.openTelegramLink) app.openTelegramLink(url)
+  else window.open(url, '_blank', 'noopener,noreferrer')
+}

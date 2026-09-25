@@ -6,6 +6,7 @@ import EggIcon from '@/components/EggIcon.vue'
 import DailyRewardTile from '@/components/DailyRewardTile.vue'
 import PromoCode from '@/features/settings/PromoCode.vue'
 import { TELEGRAM_CHANNEL_LINK } from '@/config/telegram'
+import { openTgLink } from '@/services/telegram'
 import { formatNumber } from '@/economy/format'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -18,7 +19,7 @@ const subscribed = computed(() => !!game.state?.events.channelSubscribed)
 const claimed = computed(() => !!game.state?.events.channelBonusClaimed)
 
 function subscribe() {
-  window.open(TELEGRAM_CHANNEL_LINK, '_blank', 'noopener,noreferrer')
+  openTgLink(TELEGRAM_CHANNEL_LINK)
 }
 
 async function check() {

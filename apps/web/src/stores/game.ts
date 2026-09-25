@@ -191,6 +191,7 @@ export const useGameStore = defineStore('game', () => {
   async function renameFarm(name: string) {
     const res = await run('rename', () => api.renameFarm(name))
     if (res) state.value = res
+    return !!res
   }
 
   /** Забрать 12% с продаж друзей. Возвращает сколько монет пришло. */

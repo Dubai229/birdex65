@@ -3,6 +3,7 @@
 // В обычном браузере cloud выключен — игра сохраняется локально, рейтинг/друзья пустые.
 
 import { getInitData } from './telegram'
+import { ApiError } from './apiTypes'
 import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
 const SAVE_DEBOUNCE_MS = 1500
@@ -16,7 +17,11 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
     headers: { ...(init.headers ?? {}), authorization: `tma ${getInitData()}`, 'content-type': 'application/json' },
   })
-  if (!res.ok) throw new Error(`API ${path} ${res.status}`)
+  if (!res.ok) {
+    // Сервер отвечает {error: 'КОД'} — отдаём код дальше, чтобы показать понятную ошибку.
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new ApiError(body?.error ?? 'UNKNOWN')
+  }
   return (await res.json()) as T
 }
 
@@ -78,4 +83,13 @@ export async function cloudFriends(): Promise<{ friends: Friend[]; pending: numb
 export async function cloudClaimReferral(): Promise<number> {
   flushSave()
   return (await api<{ coins: number }>('/api/ref/claim', { method: 'POST', body: '{}' })).coins
+}
+
+// ── Бонус за подписку на канал: проверяет сервер через Telegram ──
+export function cloudChannelCheck(): Promise<{ subscribed: boolean; claimed: boolean }> {
+  return api('/api/channel/check', { method: 'POST', body: '{}' })
+}
+
+export function cloudChannelClaim(): Promise<{ coins: number }> {
+  return api('/api/channel/claim', { method: 'POST', body: '{}' })
 }

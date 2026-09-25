@@ -78,6 +78,8 @@ export const SOUNDS = {
   improve: '/audio/sfx/improve.mp3',
   /** Кнопка "Выбрать курицу" и выбор курицы во вкладке Курочки. */
   pickChicken: '/audio/sfx/pick_chicken.mp3',
+  /** Кнопка "Продать яйца" на Ферме. */
+  sellUi: '/audio/sfx/sellui.mp3',
   /** Поставить курицу на главный экран (окно "Выбрать курицу" на Ферме). */
   chickenClick: '/audio/sfx/chikenclick.mp3',
   /** Повышение уровня игрока. */
