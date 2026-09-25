@@ -21,6 +21,7 @@ import RatingSheet from '@/features/social/RatingSheet.vue'
 import FriendsSheet from '@/features/social/FriendsSheet.vue'
 import SettingsSheet from '@/features/settings/SettingsSheet.vue'
 import AvatarSheet from '@/features/settings/AvatarSheet.vue'
+import CometLayer from '@/components/effects/CometLayer.vue'
 import LevelUpBanner from '@/components/effects/LevelUpBanner.vue'
 import { t } from '@/i18n'
 
@@ -76,6 +77,8 @@ onUnmounted(() => {
       <main>
         <component :is="SCREENS[ui.tab]" />
       </main>
+      <!-- Кометы: над фоном вкладки, под её содержимым. -->
+      <CometLayer />
     </div>
     <BottomNav />
 

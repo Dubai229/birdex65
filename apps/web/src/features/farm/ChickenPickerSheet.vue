@@ -5,12 +5,14 @@ import { useUiStore } from '@/stores/ui'
 import BottomSheet from '@/components/BottomSheet.vue'
 import ChickenAvatar from '@/components/ChickenAvatar.vue'
 import { getChickenDef } from '@/config/chickens'
+import { playSound } from '@/services/audio'
 import { t } from '@/i18n'
 
 const game = useGameStore()
 const ui = useUiStore()
 
 async function pick(id: string) {
+  playSound('chickenClick', 0.8)
   await game.displayChicken(id)
   ui.closeSheet()
 }

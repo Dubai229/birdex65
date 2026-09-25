@@ -3,9 +3,10 @@
 // Если файла ещё нет — показывается запасной градиент.
 import { ref, watch } from 'vue'
 
-const props = withDefaults(defineProps<{ src: string; fallback?: string; dim?: number }>(), {
+const props = withDefaults(defineProps<{ src: string; fallback?: string; dim?: number; blur?: number }>(), {
   fallback: 'linear-gradient(180deg, #f7c77a 0%, #e9a255 30%, #7a9a3f 58%, #3f5520 100%)',
   dim: 0.15,
+  blur: 0,
 })
 
 const failed = ref<Record<string, boolean>>({})
@@ -30,6 +31,8 @@ watch(
         v-show="!failed[l.src]"
         :key="l.id"
         :src="l.src"
+        :class="{ blurred: blur > 0 }"
+        :style="blur > 0 ? { filter: `blur(${blur}px) saturate(0.9)` } : undefined"
         alt=""
         draggable="false"
         @error="failed = { ...failed, [l.src]: true }"
@@ -45,6 +48,8 @@ img {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; object-position: center bottom;
 }
+/* Размытый фон чуть увеличен, чтобы по краям не было светлой каймы. */
+img.blurred { transform: scale(1.12); }
 .dim { position: absolute; inset: 0; background: #000; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.4s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
