@@ -122,7 +122,8 @@ describe('reward (days by New York time)', () => {
     expect(msUntilNextDay(Date.parse('2026-11-01T04:00:00Z'))).toBe(25 * H)
   })
   it('amount clamps to last day', () => {
-    expect(rewardAmount(99)).toBe(2000)
+    expect(ECONOMY.rewardStreak).toHaveLength(30)
+    expect(rewardAmount(99)).toBe(50000)
   })
 })
 

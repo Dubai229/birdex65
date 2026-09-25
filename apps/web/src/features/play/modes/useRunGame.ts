@@ -1,161 +1,274 @@
-// Логика "Курица и бомбы": сверху падают бомбы, игрок ведёт курицу пальцем.
-// Задело бомбой — конец. 20 яиц за минуту, 10 минут — победа и 500 яиц.
-
-import { ref, onUnmounted } from 'vue'
-import { ECONOMY } from '@/config/economy'
-import { runDifficulty, runEggs } from '@/economy/modes'
-import { playSound } from '@/services/audio'
+import { computed, onUnmounted, ref } from 'vue'
+import { api, ApiError } from '@/services/api'
+import type { ChickenFlightHistoryEntry, ChickenFlightStatus } from '@/services/apiTypes'
+import { CHICKEN_FLIGHT, flightMultiplierAt, flightReward, flightZone } from '@/economy/chickenFlight'
+import { useGameStore } from '@/stores/game'
+import { useUiStore } from '@/stores/ui'
+import { playMusic, playSound } from '@/services/audio'
 import { haptics } from '@/services/haptics'
+import { t } from '@/i18n'
 
-const R = ECONOMY.modes.run
-const WIN_SECONDS = R.maxMinutes * 60
-/** Хитбоксы чуть меньше картинок — задевание "по краю" прощается. */
-const HEN_R = 24
-const BOMB_R = 16
-const HEN_SIZE = 76
+export type FlightState = 'IDLE' | 'STARTING' | 'FLYING' | 'COLLECTING' | 'COLLECTED' | 'CRASHED'
 
-export interface Bomb { id: number; x: number; y: number; speed: number; spin: number }
-/** Перо: летит из точки (x, y) на (dx, dy), крутится и плавно падает. */
-export interface Feather { id: number; x: number; y: number; dx: number; dy: number; rot: number; size: number; tone: number; dur: number }
+export function useRunGame() {
+  const game = useGameStore()
+  const ui = useUiStore()
+  const state = ref<FlightState>('IDLE')
+  const amount = ref(100)
+  const targetMultiplier = ref(2)
+  const sessionId = ref<string | null>(null)
+  const startedAt = ref(0)
+  const now = ref(Date.now())
+  const settledMultiplier = ref(0)
+  const settledReward = ref(0)
+  const settledAmount = ref(0)
+  const history = ref<ChickenFlightHistoryEntry[]>([])
+  const stats = ref({ flights: 0, bestMultiplier: 0, largestReward: 0, totalCollected: 0 })
+  const milestone = ref('')
+  const error = ref('')
 
-const FEATHER_TONES = 3 // белое / кремовое / рыжее (цвета — в RunGame.vue)
-
-export function useRunGame(onEnd: (seconds: number, win: boolean) => void) {
-  const hen = ref({ x: 180, y: 460 })
-  const bombs = ref<Bomb[]>([])
-  const boom = ref<{ x: number; y: number } | null>(null)
-  const elapsed = ref(0)
-  const dragging = ref(false)
-  const win = ref(false)
-  const feathers = ref<Feather[]>([])
-
-  /** Выпустить перья из курицы. big — взрыв: много перьев и далеко. */
-  function puff(x: number, y: number, big: boolean) {
-    const n = big ? 34 : 5
-    const batch: Feather[] = []
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2
-      const d = big ? 60 + Math.random() * 140 : 20 + Math.random() * 35
-      batch.push({
-        id: nextId++,
-        x: x + (Math.random() - 0.5) * 20,
-        y: y + (Math.random() - 0.5) * 20,
-        dx: Math.cos(a) * d,
-        dy: Math.sin(a) * d * 0.7 - (big ? 30 : 10),
-        rot: (Math.random() - 0.5) * (big ? 720 : 360),
-        size: (big ? 12 : 9) + Math.random() * (big ? 12 : 6),
-        tone: Math.floor(Math.random() * FEATHER_TONES),
-        dur: (big ? 1100 : 700) + Math.random() * 500,
-      })
-    }
-    feathers.value.push(...batch)
-    const ids = new Set(batch.map((f) => f.id))
-    setTimeout(() => (feathers.value = feathers.value.filter((f) => !ids.has(f.id))), (big ? 1700 : 1300))
-  }
-  let size = { w: 360, h: 560 }
   let raf = 0
-  let last = 0
-  let spawnIn = 0.8
-  let nextId = 1
-  let running = false
-  let grab = { dx: 0, dy: 0 }
+  let pollTimer = 0
+  let lastMilestone = 0
 
-  const eggs = () => runEggs(elapsed.value)
+  const balance = computed(() => game.balance?.eggs ?? 0)
+  const currentMultiplier = computed(() => (
+    state.value === 'FLYING' || state.value === 'COLLECTING'
+      ? flightMultiplierAt(now.value - startedAt.value)
+      : settledMultiplier.value || 1
+  ))
+  const currentReward = computed(() => flightReward(amount.value, currentMultiplier.value))
+  const zone = computed(() => flightZone(currentMultiplier.value))
+  const canLaunch = computed(() => (
+    state.value === 'IDLE' &&
+    amount.value >= CHICKEN_FLIGHT.minAmount &&
+    amount.value <= CHICKEN_FLIGHT.maxAmount &&
+    amount.value <= balance.value &&
+    targetMultiplier.value >= 1.01 &&
+    targetMultiplier.value <= CHICKEN_FLIGHT.maxMultiplier
+  ))
 
-  function clampHen(x: number, y: number) {
-    const m = HEN_SIZE / 2
-    hen.value = {
-      x: Math.min(size.w - m, Math.max(m, x)),
-      y: Math.min(size.h - m, Math.max(size.h * 0.25, y)),
+  function clampAmount(v: number) {
+    const max = Math.min(CHICKEN_FLIGHT.maxAmount, Math.max(CHICKEN_FLIGHT.minAmount, balance.value))
+    amount.value = Math.max(CHICKEN_FLIGHT.minAmount, Math.min(max, Math.floor(v)))
+  }
+
+  function setAmount(v: number) {
+    clampAmount(v)
+    playSound('click', 0.4)
+  }
+
+  function setCustomAmount(v: string | number) {
+    const n = Math.floor(Number(v))
+    if (!Number.isFinite(n)) return
+    clampAmount(n)
+  }
+
+  function setTargetMultiplier(v: string | number) {
+    const n = Number(v)
+    if (!Number.isFinite(n)) return
+    targetMultiplier.value = Math.max(1.01, Math.min(CHICKEN_FLIGHT.maxMultiplier, Math.floor(n * 100) / 100))
+  }
+
+  function step(delta: number) {
+    clampAmount(amount.value + delta)
+    playSound('click', 0.35)
+  }
+
+  function tick() {
+    now.value = Date.now()
+    const m = currentMultiplier.value
+    const hit = [...CHICKEN_FLIGHT.milestones].reverse().find((x) => m >= x.at)
+    if (hit && hit.at > lastMilestone) {
+      lastMilestone = hit.at
+      milestone.value = hit.label
+      playSound(hit.at >= 10 ? 'lvlup' : 'chickenRun', 0.45)
+      haptics.medium()
+      window.setTimeout(() => {
+        if (milestone.value === hit.label) milestone.value = ''
+      }, 1100)
     }
+    if (m >= targetMultiplier.value && state.value === 'FLYING') void collect()
+    raf = requestAnimationFrame(tick)
   }
 
-  function setSize(w: number, h: number) {
-    size = { w, h }
-  }
-
-  function frame(ts: number) {
-    if (!running) return
-    const dt = Math.min(0.05, (ts - last) / 1000 || 0)
-    last = ts
-    elapsed.value += dt
-    if (elapsed.value >= WIN_SECONDS) {
-      elapsed.value = WIN_SECONDS
-      win.value = true
-      playSound('lvlup', 0.8)
-      haptics.success()
-      return stop(true)
-    }
-    const d = runDifficulty(elapsed.value)
-    spawnIn -= dt
-    if (spawnIn <= 0) {
-      bombs.value.push({
-        id: nextId++,
-        x: 20 + Math.random() * (size.w - 40),
-        y: -40,
-        speed: d.fall * (0.85 + Math.random() * 0.3),
-        spin: (Math.random() - 0.5) * 240,
-      })
-      spawnIn = d.spawnGap * (0.75 + Math.random() * 0.5)
-    }
-    const h = hen.value
-    for (const b of bombs.value) {
-      b.y += b.speed * dt
-      if (Math.hypot(b.x - h.x, b.y - h.y) < HEN_R + BOMB_R) {
-        boom.value = { x: b.x, y: b.y }
-        bombs.value = bombs.value.filter((x) => x !== b)
-        puff(h.x, h.y, true) // курицу разнесло — перья во все стороны
-        playSound('error', 0.9)
-        haptics.error()
-        return stop(true, 700) // дать увидеть взрыв
-      }
-    }
-    bombs.value = bombs.value.filter((b) => b.y < size.h + 50)
-    raf = requestAnimationFrame(frame)
-  }
-
-  // Палец зажат где угодно на поле — курица едет за ним, сохраняя смещение ("держишь курицу").
-  function down(x: number, y: number) {
-    if (!running) return
-    dragging.value = true
-    grab = { dx: hen.value.x - x, dy: hen.value.y - y }
-    // Каждое нажатие — курица квохчет и роняет пару перьев.
-    playSound('chickenRun', 0.7, 0.08)
-    puff(hen.value.x, hen.value.y, false)
-  }
-  function move(x: number, y: number) {
-    if (!running || !dragging.value) return
-    clampHen(x + grab.dx, y + grab.dy)
-  }
-  function up() {
-    dragging.value = false
-  }
-
-  function start() {
-    bombs.value = []
-    boom.value = null
-    feathers.value = []
-    elapsed.value = 0
-    win.value = false
-    spawnIn = 0.8
-    clampHen(size.w / 2, size.h - HEN_SIZE)
-    running = true
-    last = performance.now()
-    raf = requestAnimationFrame(frame)
-  }
-
-  function stop(report: boolean, delayMs = 0) {
-    if (!running) return
-    running = false
-    dragging.value = false
+  function startLoop() {
     cancelAnimationFrame(raf)
-    const seconds = Math.floor(elapsed.value)
-    if (!report) return
-    if (delayMs > 0) setTimeout(() => onEnd(seconds, win.value), delayMs)
-    else onEnd(seconds, win.value)
+    now.value = Date.now()
+    raf = requestAnimationFrame(tick)
   }
 
-  onUnmounted(() => stop(true))
+  function stopLoop() {
+    cancelAnimationFrame(raf)
+  }
 
-  return { hen, bombs, boom, feathers, elapsed, dragging, win, eggs, setSize, start, stop, down, move, up, HEN_SIZE }
+  function stopPolling() {
+    window.clearInterval(pollTimer)
+  }
+
+  function applyCrashedFromHistory(id: string | null) {
+    const entry = history.value.find((x) => x.id === id && x.status === 'CRASHED')
+    if (!entry) return false
+    stopLoop()
+    stopPolling()
+    settledMultiplier.value = entry.multiplier
+    settledReward.value = 0
+    settledAmount.value = entry.amount
+    sessionId.value = null
+    state.value = 'CRASHED'
+    ui.playing = false
+    playMusic('farm')
+    playSound('error', 0.8)
+    haptics.error()
+    return true
+  }
+
+  function startPolling() {
+    stopPolling()
+    pollTimer = window.setInterval(async () => {
+      if (state.value !== 'FLYING' || !sessionId.value) return
+      try {
+        const id = sessionId.value
+        const res = await api.chickenFlightActive()
+        game.applyState(res.state)
+        history.value = res.history
+        stats.value = res.stats
+        if (!res.session) applyCrashedFromHistory(id)
+      } catch {
+        /* A temporary network miss should not end the run. */
+      }
+    }, 900)
+  }
+
+  async function loadActive() {
+    try {
+      const res = await api.chickenFlightActive()
+      game.applyState(res.state)
+      history.value = res.history
+      stats.value = res.stats
+      if (res.session) {
+        sessionId.value = res.session.sessionId
+        startedAt.value = res.session.startedAt
+        amount.value = res.session.amount
+        state.value = 'FLYING'
+        ui.playing = true
+        playMusic('play')
+        startLoop()
+        startPolling()
+      }
+    } catch {
+      /* Active session is optional. */
+    }
+  }
+
+  async function launch() {
+    if (!canLaunch.value || state.value !== 'IDLE') return
+    state.value = 'STARTING'
+    error.value = ''
+    try {
+      const res = await api.chickenFlightStart(amount.value)
+      game.applyState(res.state)
+      sessionId.value = res.sessionId
+      startedAt.value = res.startedAt
+      settledMultiplier.value = 0
+      settledReward.value = 0
+      settledAmount.value = res.amount
+      lastMilestone = 0
+      milestone.value = 'FLY!'
+      state.value = 'FLYING'
+      ui.playing = true
+      playMusic('play')
+      playSound('chickenRun', 0.65)
+      haptics.light()
+      startLoop()
+      startPolling()
+      window.setTimeout(() => {
+        if (milestone.value === 'FLY!') milestone.value = ''
+      }, 900)
+    } catch (e) {
+      state.value = 'IDLE'
+      playSound('error', 0.7)
+      haptics.error()
+      error.value = t(`errors.${e instanceof ApiError ? e.code : 'UNKNOWN'}`)
+      ui.toast(error.value, 'error')
+    }
+  }
+
+  async function collect() {
+    if (state.value !== 'FLYING' || !sessionId.value) return
+    state.value = 'COLLECTING'
+    stopLoop()
+    try {
+      const res = await api.chickenFlightCollect(sessionId.value)
+      stopPolling()
+      game.applyState(res.state)
+      history.value = res.history
+      settledMultiplier.value = res.multiplier
+      settledReward.value = res.reward
+      settledAmount.value = res.amount
+      state.value = res.success ? 'COLLECTED' : 'CRASHED'
+      sessionId.value = null
+      ui.playing = false
+      playMusic('farm')
+      playSound(res.success ? 'collect' : 'error', 0.8)
+      haptics[res.success ? 'success' : 'error']()
+    } catch (e) {
+      state.value = 'FLYING'
+      startLoop()
+      startPolling()
+      playSound('error', 0.7)
+      haptics.error()
+      error.value = t(`errors.${e instanceof ApiError ? e.code : 'UNKNOWN'}`)
+      ui.toast(error.value, 'error')
+    }
+  }
+
+  function playAgain() {
+    stopLoop()
+    stopPolling()
+    sessionId.value = null
+    settledMultiplier.value = 0
+    settledReward.value = 0
+    settledAmount.value = 0
+    milestone.value = ''
+    error.value = ''
+    state.value = 'IDLE'
+    ui.playing = false
+    playMusic('farm')
+    clampAmount(amount.value)
+  }
+
+  function stop() {
+    stopLoop()
+    stopPolling()
+    if (state.value !== 'FLYING' && state.value !== 'COLLECTING') ui.playing = false
+  }
+
+  onUnmounted(stop)
+
+  return {
+    CONFIG: CHICKEN_FLIGHT,
+    state,
+    amount,
+    targetMultiplier,
+    balance,
+    currentMultiplier,
+    currentReward,
+    settledMultiplier,
+    settledReward,
+    settledAmount,
+    history,
+    stats,
+    milestone,
+    zone,
+    canLaunch,
+    loadActive,
+    setAmount,
+    setCustomAmount,
+    setTargetMultiplier,
+    step,
+    launch,
+    collect,
+    playAgain,
+  }
 }

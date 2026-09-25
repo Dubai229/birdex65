@@ -214,6 +214,15 @@ export const useGameStore = defineStore('game', () => {
     return res.coins
   }
 
+  async function claimInviteTask(target: 5 | 10 | 25) {
+    const res = await run(`invite:${target}`, () => api.claimInviteTask(target))
+    if (!res) return 0
+    state.value = res.state
+    playSound('reward')
+    haptics.success()
+    return res.coins
+  }
+
   async function verifyChannelSubscription() {
     const res = await run('channel-check', () => api.verifyChannelSubscription())
     if (!res) return false
@@ -238,7 +247,7 @@ export const useGameStore = defineStore('game', () => {
     state, loading, pending, now,
     profile, balance, season, chickens, perHour, displayedChicken, readyToCollect, energy,
     ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy, upgradeModeEnergy, upgradeStorage, redeemCode,
-    displayChicken, claimReward, renameFarm, claimReferral, verifyChannelSubscription, claimChannelBonus,
+    displayChicken, claimReward, renameFarm, claimReferral, claimInviteTask, verifyChannelSubscription, claimChannelBonus,
     applyState, stopClock, modeEnergy,
   }
 })

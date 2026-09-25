@@ -34,6 +34,19 @@ export interface UserRow {
   updated_at: number
 }
 
+export interface ChickenFlightRow {
+  id: string
+  user_id: number
+  amount: number
+  started_at: number
+  crash_at: number
+  crash_multiplier: number
+  status: 'FLYING' | 'COLLECTED' | 'CRASHED'
+  collect_multiplier: number | null
+  reward: number
+  created_at: number
+}
+
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
@@ -50,6 +63,19 @@ const SCHEMA = [
   )`,
   'CREATE INDEX IF NOT EXISTS users_xp ON users (xp DESC)',
   'CREATE INDEX IF NOT EXISTS users_ref ON users (referred_by)',
+  `CREATE TABLE IF NOT EXISTS chicken_flights (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    started_at INTEGER NOT NULL,
+    crash_at INTEGER NOT NULL,
+    crash_multiplier REAL NOT NULL,
+    status TEXT NOT NULL,
+    collect_multiplier REAL,
+    reward INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS chicken_flights_user_status ON chicken_flights (user_id, status, created_at DESC)',
 ]
 
 /**

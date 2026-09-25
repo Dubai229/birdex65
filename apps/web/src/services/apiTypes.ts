@@ -52,6 +52,47 @@ export interface ModeSummary {
 
 export interface PlayResult { eggsAwarded: number; state: GameState }
 
+export type ChickenFlightStatus = 'FLYING' | 'COLLECTED' | 'CRASHED'
+
+export interface ChickenFlightHistoryEntry {
+  id: string
+  status: ChickenFlightStatus
+  amount: number
+  multiplier: number
+  reward: number
+  createdAt: number
+}
+
+export interface ChickenFlightStartResult {
+  sessionId: string
+  amount: number
+  startedAt: number
+  status: 'FLYING'
+  state: GameState
+}
+
+export interface ChickenFlightActiveResult {
+  session: ChickenFlightStartResult | null
+  history: ChickenFlightHistoryEntry[]
+  stats: {
+    flights: number
+    bestMultiplier: number
+    largestReward: number
+    totalCollected: number
+  }
+  state: GameState
+}
+
+export interface ChickenFlightCollectResult {
+  success: boolean
+  status: ChickenFlightStatus
+  multiplier: number
+  reward: number
+  amount: number
+  state: GameState
+  history: ChickenFlightHistoryEntry[]
+}
+
 export interface GameApi {
   me(): Promise<GameState>
   collect(): Promise<CollectResult>
@@ -68,9 +109,13 @@ export interface GameApi {
   finishPlay(summary: PlaySessionSummary): Promise<PlayResult>
   startMode(mode: ExtraMode): Promise<PlaySessionTicket>
   finishMode(summary: ModeSummary): Promise<PlayResult>
+  chickenFlightActive(): Promise<ChickenFlightActiveResult>
+  chickenFlightStart(amount: number): Promise<ChickenFlightStartResult>
+  chickenFlightCollect(sessionId: string): Promise<ChickenFlightCollectResult>
   leaderboard(kind: RatingKind): Promise<LeaderboardResult>
   friends(): Promise<FriendsResult>
   claimReferral(): Promise<{ coins: number; state: GameState }>
+  claimInviteTask(target: 5 | 10 | 25): Promise<{ coins: number; birdPoints?: number; state: GameState }>
   verifyChannelSubscription(): Promise<{ subscribed: boolean; state: GameState }>
   claimChannelBonus(): Promise<{ coins: number; state: GameState }>
   renameFarm(name: string): Promise<GameState>
