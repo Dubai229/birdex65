@@ -180,6 +180,8 @@ export function usePlaySession() {
     remainingSeconds.value = P.durationSeconds
     playTimer = window.setInterval(() => {
       if (phase.value !== 'running') return
+      // Во время заморозки (ледяное яйцо) время попытки стоит, потом идёт дальше с того же места.
+      if (frozenLeft.value > 0) return
       remainingSeconds.value--
       if (remainingSeconds.value <= 0) finish()
     }, 1000)

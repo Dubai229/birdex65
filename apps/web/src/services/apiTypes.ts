@@ -1,6 +1,7 @@
 // Контракт API. Клиент шлёт НАМЕРЕНИЕ, сервер считает результат.
 // Mock и реальный HTTP-клиент реализуют один и тот же интерфейс.
 
+import type { ExtraMode } from '@/economy/modes'
 import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
 export interface CollectResult { collected: number; state: GameState }
@@ -20,7 +21,7 @@ export interface FriendsResult {
   total: number
   online: boolean
 }
-export interface PromoResult { coins: number; energy: number; state: GameState }
+export interface PromoResult { coins: number; energy: number; energyMode?: 'catch' | 'fox' | 'run'; state: GameState }
 
 export interface PlaySessionTicket {
   sessionId: string
@@ -38,6 +39,17 @@ export interface PlaySessionSummary {
   maxCombo: number
 }
 
+/** Итог попытки в режимах Лисы / Бомбы. Сервер сам проверяет правдоподобность. */
+export interface ModeSummary {
+  sessionId: string
+  mode: ExtraMode
+  /** Лисы: сколько убито обычных и плотных. */
+  kills?: number
+  tanks?: number
+  /** Бомбы: сколько секунд продержался. */
+  seconds?: number
+}
+
 export interface PlayResult { eggsAwarded: number; state: GameState }
 
 export interface GameApi {
@@ -47,13 +59,15 @@ export interface GameApi {
   buyChicken(key: string): Promise<GameState>
   upgradeChicken(chickenId: string): Promise<GameState>
   upgradeEnergy(): Promise<GameState>
-  buyEnergy(): Promise<{ energy: number; coinsSpent: number; state: GameState }>
+  upgradeModeEnergy(mode: ExtraMode): Promise<GameState>
   upgradeStorage(): Promise<GameState>
   redeemCode(code: string): Promise<PromoResult>
   displayChicken(chickenId: string): Promise<GameState>
   claimReward(): Promise<RewardResult>
   startPlay(): Promise<PlaySessionTicket>
   finishPlay(summary: PlaySessionSummary): Promise<PlayResult>
+  startMode(mode: ExtraMode): Promise<PlaySessionTicket>
+  finishMode(summary: ModeSummary): Promise<PlayResult>
   leaderboard(kind: RatingKind): Promise<LeaderboardResult>
   friends(): Promise<FriendsResult>
   claimReferral(): Promise<{ coins: number; state: GameState }>

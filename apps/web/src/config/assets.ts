@@ -5,6 +5,21 @@ export const ASSETS = {
   farm: {
     barn: '/assets/farm/barn.png',
   },
+  /** Картинки режимов в меню Play. */
+  modes: {
+    catch: '/assets/play/eggplay.webp',
+    fox: '/assets/play/play2.webp',
+    run: '/assets/play/play3.webp',
+  },
+  /** Лисы в режиме "Защита от лис": обычная и крепкая (в каске). Смотрят вправо. */
+  /** Яйцо в корзине — в центре "Защиты от лис". */
+  eggBasket: '/assets/play/eggplay.webp',
+  /** Бомба в режиме "Курица и бомбы". */
+  bomb: '/assets/play/bomb.webp',
+  foxes: {
+    normal: '/assets/play/fox.webp',
+    boss: '/assets/play/foxboss.webp',
+  },
   /** Фон вкладки Play. Пока не используется — Play берёт выбранный фон фермы. */
   playBackground: '/assets/play/play_bg.webp',
   eggs: {
@@ -78,6 +93,8 @@ export const SOUNDS = {
   improve: '/audio/sfx/improve.mp3',
   /** Кнопка "Выбрать курицу" и выбор курицы во вкладке Курочки. */
   pickChicken: '/audio/sfx/pick_chicken.mp3',
+  /** Нажал на курицу в "Курица и бомбы" — квохчет и роняет перья. */
+  chickenRun: '/audio/sfx/chicken_run.mp3',
   /** Кнопка "Продать яйца" на Ферме. */
   sellUi: '/audio/sfx/sellui.mp3',
   /** Поставить курицу на главный экран (окно "Выбрать курицу" на Ферме). */

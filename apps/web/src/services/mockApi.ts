@@ -9,9 +9,10 @@ import { upgradeCost, isMaxLevel } from '@/economy/upgrade'
 import { sellValue } from '@/economy/market'
 import { rewardStatus, effectiveStreakDay, rewardAmount } from '@/economy/reward'
 import { maxPlausibleEggs } from '@/economy/playDifficulty'
-import { energyBuyCost, energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
+import { energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
 import { storageUpgradeCost, STORAGE_MAX_LEVEL } from '@/economy/storage'
 import { birdPointsForSale } from '@/economy/season'
+import { modeConfig, modeEnergyNow, modeEnergyMax, modeMaxed, foxEggs, runEggs, type ExtraMode } from '@/economy/modes'
 import { findPromo, normalizeCode } from '@/config/promo'
 import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
@@ -31,6 +32,7 @@ export function renameCost(s: Pick<GameState, 'profile'>): number {
   return (s.profile.renames ?? 0) >= 1 ? ECONOMY.renameCost : 0
 }
 let activeSession: Omit<PlaySessionTicket, 'state'> | null = null
+let activeMode: (Omit<PlaySessionTicket, 'state'> & { mode: ExtraMode }) | null = null
 
 let booted: Promise<void> | null = null
 
@@ -184,16 +186,22 @@ export const mockApi: GameApi = {
     return commit()
   },
 
-  async buyEnergy() {
+  /** Прокачка энергии режима Лисы / Бомбы: +50 к максимуму (и к текущей), цены как у основной. */
+  async upgradeModeEnergy(mode) {
     await wait()
     const s = db()
-    const cost = energyBuyCost(s.profile.level)
+    const e = s.modeEnergy[mode]
+    if (modeMaxed(e)) throw new ApiError('MAX_LEVEL')
+    const level = e.level ?? 0
+    const cost = energyUpgradeCost(level)
     if (s.balance.coins < cost) throw new ApiError('NOT_ENOUGH_COINS')
-    syncEnergy(s, Date.now())
+    const now = Date.now()
+    const cur = modeEnergyNow(e, now)
     s.balance.coins -= cost
-    // Купленная энергия может быть выше максимума, как бонусы из промокодов.
-    s.balance.energy += ECONOMY.energy.buyAmount
-    return { energy: ECONOMY.energy.buyAmount, coinsSpent: cost, state: commit() }
+    const next = { energy: cur, updatedAt: now, level: level + 1 }
+    next.energy = Math.max(cur, Math.min(modeEnergyMax(next), cur + ECONOMY.energy.upgradeStep))
+    s.modeEnergy[mode] = next
+    return commit()
   },
 
   async upgradeStorage() {
@@ -220,12 +228,18 @@ export const mockApi: GameApi = {
     s.redeemedCodes.push(code)
     const coins = promo.coins ?? 0
     const energy = promo.energy ?? 0
+    const energyMode = promo.energyMode ?? 'catch'
     s.balance.coins += coins
-    if (energy > 0) {
+    if (energy > 0 && energyMode === 'catch') {
       syncEnergy(s, Date.now())
       s.balance.energy += energy
+    } else if (energy > 0 && energyMode !== 'catch') {
+      // Энергия Лис / Бомб: может быть выше максимума, лишнее не сгорает.
+      const now = Date.now()
+      const e = s.modeEnergy[energyMode]
+      s.modeEnergy[energyMode] = { ...e, energy: modeEnergyNow(e, now) + energy, updatedAt: now }
     }
-    return { coins, energy, state: commit() }
+    return { coins, energy, energyMode, state: commit() }
   },
 
   async displayChicken(chickenId) {
@@ -282,6 +296,50 @@ export const mockApi: GameApi = {
     const eggsAwarded = Math.max(0, Math.min(earned, free))
     s.balance.eggs += eggsAwarded
     // Рекорд для рейтинга — сколько набил за игру (даже если склад не вместил).
+    s.stats.bestPlay = Math.max(s.stats.bestPlay, earned)
+    return { eggsAwarded, state: commit() }
+  },
+
+  // ── Режимы Лисы и Бомбы: своя энергия, награда считается здесь ("сервер") ──
+  async startMode(mode) {
+    await wait()
+    const s = db()
+    const now = Date.now()
+    const cfg = modeConfig(mode)
+    const e = s.modeEnergy[mode]
+    const energy = modeEnergyNow(e, now)
+    if (energy < cfg.playCost) throw new ApiError('NO_ENERGY')
+    s.modeEnergy[mode] = { ...e, energy: energy - cfg.playCost, updatedAt: now }
+    activeMode = {
+      mode,
+      sessionId: `m_${now}`,
+      startedAt: now,
+      expiresAt: now + (ECONOMY.modes.run.maxMinutes + 2) * 60_000,
+    }
+    return { sessionId: activeMode.sessionId, startedAt: now, expiresAt: activeMode.expiresAt, state: commit() }
+  },
+
+  async finishMode(summary) {
+    await wait()
+    const s = db()
+    const session = activeMode
+    if (!session || session.sessionId !== summary.sessionId || session.mode !== summary.mode) throw new ApiError('BAD_SESSION')
+    activeMode = null
+    const seconds = (Math.min(Date.now(), session.expiresAt) - session.startedAt) / 1000
+    let earned = 0
+    if (session.mode === 'fox') {
+      // Анти-чит: убийств не больше, чем физически успеть за время игры.
+      const cap = Math.ceil(seconds * ECONOMY.modes.fox.maxKillsPerSecond)
+      const kills = Math.max(0, Math.min(Math.floor(summary.kills ?? 0), cap))
+      const tanks = Math.max(0, Math.min(Math.floor(summary.tanks ?? 0), Math.ceil(cap / ECONOMY.modes.fox.tankHits)))
+      earned = foxEggs(kills, tanks)
+    } else {
+      // Прожил не дольше, чем реально длилась попытка.
+      earned = runEggs(Math.min(Math.max(0, summary.seconds ?? 0), seconds + 1))
+    }
+    const free = Math.max(0, s.balance.storageCapacity - s.balance.eggs)
+    const eggsAwarded = Math.min(earned, free)
+    s.balance.eggs += eggsAwarded
     s.stats.bestPlay = Math.max(s.stats.bestPlay, earned)
     return { eggsAwarded, state: commit() }
   },

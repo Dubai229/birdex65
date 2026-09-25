@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { ECONOMY } from '@/config/economy'
 import { chickenProduction, accumulatedEggs } from './production'
 import { storageCapacity, storageUpgradeCost, STORAGE_MAX_LEVEL } from './storage'
 import { xpForLevel, levelForXp, referencePerHour } from './progression'
@@ -69,8 +70,10 @@ describe('production', () => {
     expect(energyMaxForLevel(0)).toBe(300)
     expect(energyMaxForLevel(ENERGY_MAX_LEVEL)).toBe(1000)
     expect(ENERGY_MAX_LEVEL).toBe(14)
-    expect(energyUpgradeCost(0)).toBe(25000)
-    expect(energyUpgradeCost(1)).toBeGreaterThan(25000)
+    expect(energyUpgradeCost(0)).toBe(2000)
+    expect(energyUpgradeCost(1)).toBe(10000)
+    expect(energyUpgradeCost(4)).toBe(400000)
+    expect(energyUpgradeCost(ENERGY_MAX_LEVEL - 1)).toBeGreaterThan(energyUpgradeCost(4))
   })
 })
 
@@ -139,8 +142,8 @@ describe('play difficulty', () => {
   it('gets faster with every egg, but has a floor', () => {
     expect(spawnIntervalMs(0)).toBeCloseTo(294.12)
     expect(spawnIntervalMs(60)).toBeLessThan(200)
-    expect(fallDurationMs(0)).toBe(6200)
-    expect(fallDurationMs(1000)).toBe(1700)
+    expect(fallDurationMs(0)).toBe(ECONOMY.play.fallStartMs)
+    expect(fallDurationMs(1000)).toBe(ECONOMY.play.fallMinMs)
   })
 })
 
