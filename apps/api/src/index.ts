@@ -114,7 +114,9 @@ async function handleSave(a: TgAuth, req: Request, env: Env): Promise<Response> 
     if (!me) return fail('NO_USER', 404)
     // Продажи считаем по максимуму: если сохранение "откатилось", повторно не начисляем.
     const sold = Math.max(me.sold_total, num(state.stats?.soldCoins))
-    const refBonus = me.referred_by ? Math.floor(sold * REF_SHARE) - Math.floor(me.sold_total * REF_SHARE) : 0
+    // Считаем от общей суммы продаж и округляем вверх: даже продажа 1 яйца (5 монет → 0.6)
+    // сразу даёт пригласившему 1 монету, а в сумме всё равно выходит ровно 12% (без лишнего).
+    const refBonus = me.referred_by ? Math.ceil(sold * REF_SHARE) - Math.ceil(me.sold_total * REF_SHARE) : 0
     const res = (await env.DB.prepare(
       `UPDATE users SET state = ?, level = ?, xp = ?, coins = ?, chickens = ?, farm_name = ?, avatar = ?,
          best_play = MAX(best_play, ?), sold_total = ?, ref_given = ref_given + ?, updated_at = ?
