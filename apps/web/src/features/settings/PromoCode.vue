@@ -24,7 +24,7 @@ async function apply() {
   if (res) {
     const parts: string[] = []
     if (res.coins) parts.push(`+${formatNumber(res.coins)} 🪙`)
-    if (res.energy) parts.push(`+${formatNumber(res.energy)} ⚡`)
+    if (res.energy) parts.push(`+${formatNumber(res.energy)} ⚡ ${t(`modes.${res.energyMode ?? 'catch'}.title`)}`)
     ui.toast(t('settings.promoSuccess', { reward: parts.join(' ') }), 'success')
     code.value = ''
   } else {

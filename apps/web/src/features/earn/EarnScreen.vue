@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import FarmBackdrop from '@/components/FarmBackdrop.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import EggIcon from '@/components/EggIcon.vue'
@@ -10,6 +10,7 @@ import { openTgLink } from '@/services/telegram'
 import { formatNumber } from '@/economy/format'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
+import ChannelBonusPopup from './ChannelBonusPopup.vue'
 import { t } from '@/i18n'
 
 const game = useGameStore()
@@ -18,9 +19,53 @@ const ui = useUiStore()
 const subscribed = computed(() => !!game.state?.events.channelSubscribed)
 const claimed = computed(() => !!game.state?.events.channelBonusClaimed)
 
+// Нажал "Подписаться" → ушёл в канал → вернулся в игру: сами проверяем подписку
+// и показываем окно с наградой. Флаг в sessionStorage — на случай, если Telegram перезагрузит игру.
+const WAIT_KEY = 'birdex_channel_wait'
+const popup = ref(false)
+
+function setWaiting(v: boolean) {
+  try {
+    if (v) sessionStorage.setItem(WAIT_KEY, '1')
+    else sessionStorage.removeItem(WAIT_KEY)
+  } catch {
+    /* хранилище недоступно — просто без флага */
+  }
+}
+function isWaiting(): boolean {
+  try {
+    return sessionStorage.getItem(WAIT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 function subscribe() {
+  if (!claimed.value) setWaiting(true)
   openTgLink(TELEGRAM_CHANNEL_LINK)
 }
+
+async function autoCheck() {
+  if (document.visibilityState !== 'visible' || !isWaiting() || claimed.value) return
+  setWaiting(false)
+  const ok = await game.verifyChannelSubscription()
+  if (ok && !claimed.value) popup.value = true
+}
+
+async function claimFromPopup() {
+  await claim()
+  popup.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', autoCheck)
+  window.addEventListener('focus', autoCheck)
+  autoCheck()
+})
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', autoCheck)
+  window.removeEventListener('focus', autoCheck)
+})
 
 async function check() {
   const ok = await game.verifyChannelSubscription()
@@ -64,6 +109,14 @@ async function claim() {
         </div>
       </div>
     </div>
+
+    <ChannelBonusPopup
+      v-if="popup"
+      :coins="1000"
+      :loading="game.pending === 'channel-bonus'"
+      @claim="claimFromPopup"
+      @close="popup = false"
+    />
 
     <div class="promo-dock">
       <PromoCode />

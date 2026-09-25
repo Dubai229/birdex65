@@ -1,7 +1,6 @@
 // Энергия для Play: максимум прокачивается за монеты, восполняется за 8 часов.
 
 import { ECONOMY } from '@/config/economy'
-import { niceRound } from './round'
 
 const E = ECONOMY.energy
 const HOUR_MS = 3_600_000
@@ -14,14 +13,9 @@ export function energyMaxForLevel(level: number): number {
 /** Сколько всего улучшений энергии (300 → 1000 по +50 = 14). */
 export const ENERGY_MAX_LEVEL = Math.ceil((E.max - E.start) / E.upgradeStep)
 
-/** Цена улучшения энергии с уровня level на level+1. */
+/** Цена улучшения энергии с уровня level на level+1 (таблица ECONOMY.energy.upgradeCosts). */
 export function energyUpgradeCost(level: number): number {
-  return niceRound(E.upgradeBaseCost * E.upgradeGrowth ** level)
-}
-
-/** Цена покупки энергии растёт вместе с уровнем фермы. */
-export function energyBuyCost(farmLevel: number): number {
-  return niceRound(E.buyBaseCost * E.buyCostGrowth ** Math.max(0, farmLevel - 1))
+  return E.upgradeCosts[Math.min(level, E.upgradeCosts.length - 1)]
 }
 
 /** Энергии в секунду: весь максимум за refillHours. */
@@ -43,9 +37,9 @@ export function currentEnergy(params: {
   return Math.min(energyMax, Math.floor(energy + regen))
 }
 
-/** Мс до следующей полной попытки (0 — можно играть). */
-export function msUntilPlayable(energy: number, energyMax: number): number {
-  const need = E.playCost - energy
+/** Мс до следующей полной попытки (0 — можно играть). cost — цена попытки режима. */
+export function msUntilPlayable(energy: number, energyMax: number, cost: number = E.playCost): number {
+  const need = cost - energy
   if (need <= 0) return 0
   return Math.ceil((need / energyRegenPerSecond(energyMax)) * 1000)
 }

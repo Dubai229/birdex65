@@ -1,3 +1,4 @@
+import type { ExtraMode, ModeEnergy } from '@/economy/modes'
 // Общие типы игры. Позже переедут в packages/shared, когда появится бэкенд.
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
@@ -99,6 +100,8 @@ export interface GameState {
   events: EventState
   season: SeasonState
   stats: PlayerStats
+  /** Отдельная энергия режимов Play (Лисы, Бомбы). */
+  modeEnergy: Record<ExtraMode, ModeEnergy>
   version: number
 }
 
