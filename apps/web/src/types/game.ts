@@ -44,6 +44,8 @@ export interface PlayerProfile {
   id: string
   name: string
   farmName: string
+  /** Сколько раз уже меняли название фермы (первая смена бесплатная). */
+  renames?: number
   level: number
   xp: number
   /** Ключ курицы-аватарки (любая из 36). Нет — фермер. */

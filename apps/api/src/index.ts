@@ -10,6 +10,8 @@
 //   GET  /api/leaderboard?by=coins|play — топ-50 по монетам / по рекорду в Play + моё место
 //   GET  /api/friends      — кого я пригласил + сколько 12% накопилось
 //   POST /api/ref/claim    — забрать накопленные 12%
+//   POST /api/channel/check — подписан ли игрок на канал (спрашиваем у Telegram)
+//   POST /api/channel/claim — бонус за подписку (один раз на аккаунт)
 
 import { verifyInitData, type TgAuth } from './telegramAuth'
 import { ensureSchema, type D1Database, type UserRow } from './db'
@@ -17,6 +19,8 @@ import { ensureSchema, type D1Database, type UserRow } from './db'
 interface Env {
   DB: D1Database
   BOT_TOKEN: string
+  /** ID канала для бонуса за подписку, вида -1001234567890. Бот должен быть админом канала. */
+  CHANNEL_ID?: string
   ASSETS: { fetch(req: Request): Promise<Response> }
 }
 
@@ -24,8 +28,12 @@ interface Env {
 const MAX_STATE_BYTES = 64 * 1024
 /** Друг считается активным, когда дорос до этого уровня. */
 const ACTIVE_FRIEND_LEVEL = 2
-/** Доля с продажи яиц друга, которая идёт пригласившему. */
-const REF_SHARE = 0.12
+/** % с продажи яиц друга, который идёт пригласившему. */
+const REF_PERCENT = 12
+/** 12% от суммы, вверх до целой монеты. Целочисленно, чтобы не было ошибок вида 54.00000001 → 55. */
+const refShare = (coins: number) => Math.ceil((coins * REF_PERCENT) / 100)
+/** Бонус за подписку на канал. */
+const CHANNEL_BONUS_COINS = 1000
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
@@ -116,7 +124,7 @@ async function handleSave(a: TgAuth, req: Request, env: Env): Promise<Response> 
     const sold = Math.max(me.sold_total, num(state.stats?.soldCoins))
     // Считаем от общей суммы продаж и округляем вверх: даже продажа 1 яйца (5 монет → 0.6)
     // сразу даёт пригласившему 1 монету, а в сумме всё равно выходит ровно 12% (без лишнего).
-    const refBonus = me.referred_by ? Math.ceil(sold * REF_SHARE) - Math.ceil(me.sold_total * REF_SHARE) : 0
+    const refBonus = me.referred_by ? refShare(sold) - refShare(me.sold_total) : 0
     const res = (await env.DB.prepare(
       `UPDATE users SET state = ?, level = ?, xp = ?, coins = ?, chickens = ?, farm_name = ?, avatar = ?,
          best_play = MAX(best_play, ?), sold_total = ?, ref_given = ref_given + ?, updated_at = ?
@@ -205,6 +213,44 @@ async function handleRefClaim(a: TgAuth, env: Env): Promise<Response> {
   return json({ coins })
 }
 
+/**
+ * Подписан ли игрок на канал — спрашиваем у Telegram (getChatMember).
+ * Работает, только если бот добавлен в канал администратором.
+ */
+async function isSubscribed(env: Env, userId: number): Promise<boolean> {
+  const url = `https://api.telegram.org/bot${env.BOT_TOKEN}/getChatMember?chat_id=${encodeURIComponent(env.CHANNEL_ID!)}&user_id=${userId}`
+  const res = await fetch(url)
+  const data = (await res.json()) as { ok: boolean; description?: string; result?: { status: string; is_member?: boolean } }
+  if (!data.ok) throw new Error(`getChatMember: ${data.description ?? res.status}`)
+  const st = data.result?.status
+  return st === 'creator' || st === 'administrator' || st === 'member' || (st === 'restricted' && !!data.result?.is_member)
+}
+
+async function handleChannel(a: TgAuth, env: Env, claim: boolean): Promise<Response> {
+  if (!env.CHANNEL_ID) return fail('NO_CHANNEL', 503)
+  const me = await env.DB.prepare('SELECT channel_bonus FROM users WHERE id = ?')
+    .bind(a.user.id)
+    .first<Pick<UserRow, 'channel_bonus'>>()
+  if (!me) return fail('NO_USER', 404)
+  let subscribed: boolean
+  try {
+    subscribed = await isSubscribed(env, a.user.id)
+  } catch (e) {
+    console.error(e) // чаще всего: бот не админ канала или неверный CHANNEL_ID
+    return fail('CHANNEL_CHECK_FAILED', 502)
+  }
+  const claimed = me.channel_bonus === 1
+  if (!claim) return json({ subscribed, claimed })
+  if (!subscribed) return fail('CHANNEL_NOT_SUBSCRIBED')
+  if (claimed) return fail('CHANNEL_BONUS_CLAIMED')
+  // Выдаём ровно один раз: обновится только строка, где бонуса ещё не было.
+  const res = (await env.DB.prepare('UPDATE users SET channel_bonus = 1 WHERE id = ? AND channel_bonus = 0')
+    .bind(a.user.id)
+    .run()) as { meta?: { changes?: number } }
+  if (res?.meta?.changes === 0) return fail('CHANNEL_BONUS_CLAIMED')
+  return json({ subscribed: true, claimed: true, coins: CHANNEL_BONUS_COINS })
+}
+
 async function handleApi(req: Request, env: Env, path: string): Promise<Response> {
   if (!env.DB) return fail('NO_DB', 503)
   if (!env.BOT_TOKEN) return fail('NO_BOT_TOKEN', 503)
@@ -217,6 +263,8 @@ async function handleApi(req: Request, env: Env, path: string): Promise<Response
   if (path === '/api/leaderboard' && m === 'GET') return handleLeaderboard(a, env, new URL(req.url).searchParams.get('by') ?? 'coins')
   if (path === '/api/friends' && m === 'GET') return handleFriends(a, env)
   if (path === '/api/ref/claim' && m === 'POST') return handleRefClaim(a, env)
+  if (path === '/api/channel/check' && m === 'POST') return handleChannel(a, env, false)
+  if (path === '/api/channel/claim' && m === 'POST') return handleChannel(a, env, true)
   return fail('NOT_FOUND', 404)
 }
 

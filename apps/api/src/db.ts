@@ -29,6 +29,7 @@ export interface UserRow {
   ref_pending: number
   ref_given: number
   ref_total: number
+  channel_bonus: number
   created_at: number
   updated_at: number
 }
@@ -63,6 +64,7 @@ const COLUMNS: [string, string][] = [
   ['ref_pending', 'INTEGER NOT NULL DEFAULT 0'], // реф. монеты, ждут "Забрать"
   ['ref_given', 'INTEGER NOT NULL DEFAULT 0'], // сколько этот игрок принёс пригласившему
   ['ref_total', 'INTEGER NOT NULL DEFAULT 0'], // сколько я всего получил с друзей
+  ['channel_bonus', 'INTEGER NOT NULL DEFAULT 0'], // 1 — бонус за подписку на канал уже выдан
 ]
 
 let ready = false
