@@ -9,6 +9,7 @@ import { playSound } from '@/services/audio'
 import ChickenCard from './ChickenCard.vue'
 import ChickenDetails from './ChickenDetails.vue'
 import CoinBalance from '@/components/CoinBalance.vue'
+import FarmBackdrop from '@/components/FarmBackdrop.vue'
 import { t } from '@/i18n'
 
 const game = useGameStore()
@@ -52,7 +53,8 @@ function pickCard(key: string) {
 </script>
 
 <template>
-  <div class="screen">
+  <FarmBackdrop />
+  <div class="screen chickens">
     <div class="row">
       <h1 class="screen-title">🐔 {{ t('chickens.title') }}</h1>
       <div class="spacer" />
@@ -94,6 +96,7 @@ function pickCard(key: string) {
 </template>
 
 <style scoped>
+.chickens { position: relative; z-index: 1; }
 .screen-title { white-space: nowrap; font-size: 20px; }
 .collected { font-size: 13px; font-weight: 900; color: var(--gold); padding: 4px 10px; border-radius: 99px; background: rgba(0, 0, 0, 0.4); }
 .filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
