@@ -72,6 +72,9 @@ export interface RewardState {
 export interface EventState {
   channelSubscribed: boolean
   channelBonusClaimed: boolean
+  invite5Claimed?: boolean
+  invite10Claimed?: boolean
+  invite25Claimed?: boolean
 }
 
 export interface SeasonState {

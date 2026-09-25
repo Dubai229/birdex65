@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CoinIcon from '@/components/CoinIcon.vue'
-// Награда недели: 7 дней серии, забирать раз в день.
+// Награда месяца: 30 дней серии, забирать раз в день.
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -24,6 +24,10 @@ function dayState(i: number): 'done' | 'today' | 'future' {
   return 'future'
 }
 
+function milestone(i: number): boolean {
+  return (i + 1) % 7 === 0 || i === ECONOMY.rewardStreak.length - 1
+}
+
 async function claim() {
   const res = await game.claimReward()
   if (res) ui.toast(t('reward.claimed', { n: formatNumber(res.coins) }), 'success')
@@ -33,9 +37,9 @@ async function claim() {
 <template>
   <BottomSheet :open="ui.sheet === 'reward'" :title="t('reward.title')" @close="ui.closeSheet()">
     <div class="days">
-      <div v-for="(coins, i) in ECONOMY.rewardStreak" :key="i" class="day card" :class="[dayState(i), { last: i === 6 }]">
+      <div v-for="(coins, i) in ECONOMY.rewardStreak" :key="i" class="day card" :class="[dayState(i), { prize: milestone(i) }]">
         <div class="muted small">{{ t('reward.day', { n: i + 1 }) }}</div>
-        <div class="icon"><template v-if="i === 6">🎁</template><CoinIcon v-else :size="28" /></div>
+        <div class="icon"><template v-if="milestone(i)">🎁</template><CoinIcon v-else :size="22" /></div>
         <div class="val">{{ formatNumber(coins) }}</div>
         <div v-if="dayState(i) === 'done'" class="check">✔</div>
       </div>
@@ -48,14 +52,15 @@ async function claim() {
 </template>
 
 <style scoped>
-.days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.day { position: relative; padding: 8px 4px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
-.day.last { grid-column: span 2; }
-.day.today { border-color: var(--gold); }
+.days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: min(58vh, 460px); overflow-y: auto; padding-right: 2px; scrollbar-width: none; }
+.days::-webkit-scrollbar { display: none; }
+.day { position: relative; min-height: 72px; padding: 7px 3px; text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.day.prize { border-color: rgba(245, 184, 46, 0.55); background: linear-gradient(180deg, rgba(87, 56, 25, 0.96), rgba(28, 17, 9, 0.96)); }
+.day.today { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(245, 184, 46, 0.2), 0 0 18px rgba(245, 184, 46, 0.2); }
 .day.done { opacity: 0.55; }
-.small { font-size: 11px; }
-.icon { font-size: 26px; }
-.val { font-weight: 900; }
+.small { font-size: 10px; }
+.icon { height: 25px; display: grid; place-items: center; font-size: 21px; }
+.val { font-weight: 900; font-size: 11px; line-height: 1.05; }
 .check { position: absolute; top: 4px; right: 6px; color: var(--green-success); }
 .wait { text-align: center; padding: 10px; }
 </style>

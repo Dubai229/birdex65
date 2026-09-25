@@ -4,6 +4,7 @@
 
 import { getInitData } from './telegram'
 import { ApiError } from './apiTypes'
+import type { ChickenFlightActiveResult, ChickenFlightCollectResult, ChickenFlightStartResult } from './apiTypes'
 import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
 const SAVE_DEBOUNCE_MS = 1500
@@ -85,6 +86,11 @@ export async function cloudClaimReferral(): Promise<number> {
   return (await api<{ coins: number }>('/api/ref/claim', { method: 'POST', body: '{}' })).coins
 }
 
+export async function cloudClaimInviteTask(target: 5 | 10 | 25): Promise<{ coins: number; birdPoints?: number; state: GameState }> {
+  flushSave()
+  return api('/api/ref/task-claim', { method: 'POST', body: JSON.stringify({ target }) })
+}
+
 // ── Бонус за подписку на канал: проверяет сервер через Telegram ──
 export function cloudChannelCheck(): Promise<{ subscribed: boolean; claimed: boolean }> {
   return api('/api/channel/check', { method: 'POST', body: '{}' })
@@ -92,4 +98,18 @@ export function cloudChannelCheck(): Promise<{ subscribed: boolean; claimed: boo
 
 export function cloudChannelClaim(): Promise<{ coins: number }> {
   return api('/api/channel/claim', { method: 'POST', body: '{}' })
+}
+
+export function cloudChickenFlightActive(): Promise<ChickenFlightActiveResult> {
+  return api('/api/games/chicken-flight/active')
+}
+
+export function cloudChickenFlightStart(amount: number): Promise<ChickenFlightStartResult> {
+  flushSave()
+  return api('/api/games/chicken-flight/start', { method: 'POST', body: JSON.stringify({ amount }) })
+}
+
+export function cloudChickenFlightCollect(sessionId: string): Promise<ChickenFlightCollectResult> {
+  flushSave()
+  return api('/api/games/chicken-flight/collect', { method: 'POST', body: JSON.stringify({ sessionId }) })
 }

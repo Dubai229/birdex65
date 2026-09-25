@@ -56,6 +56,9 @@ export function syncDerived(state: GameState): void {
   state.profile.renames ??= state.profile.farmName === 'Моя ферма' ? 0 : 1
   state.redeemedCodes ??= []
   state.events ??= { channelSubscribed: false, channelBonusClaimed: false }
+  state.events.invite5Claimed ??= false
+  state.events.invite10Claimed ??= false
+  state.events.invite25Claimed ??= false
   state.season ??= { id: 1, points: 0, startedAt: Date.now(), endsAt: Date.now() + SEASON_MS, lastSnapshotAt: null }
   if (state.season.endsAt - state.season.startedAt < SEASON_MS) {
     state.season.endsAt = state.season.startedAt + SEASON_MS

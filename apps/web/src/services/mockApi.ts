@@ -13,12 +13,13 @@ import { energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
 import { storageUpgradeCost, STORAGE_MAX_LEVEL } from '@/economy/storage'
 import { birdPointsForSale } from '@/economy/season'
 import { modeConfig, modeEnergyNow, modeEnergyMax, modeMaxed, foxEggs, runEggs, type ExtraMode } from '@/economy/modes'
+import { CHICKEN_FLIGHT, flightElapsedForMultiplier, flightMultiplierAt, flightReward, randomCrashMultiplier } from '@/economy/chickenFlight'
 import { findPromo, normalizeCode } from '@/config/promo'
 import type { GameState } from '@/types/game'
-import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
+import { ApiError, type ChickenFlightHistoryEntry, type GameApi, type PlaySessionTicket } from './apiTypes'
 import { loadSave, writeSave } from './storage'
 import { createNewState, syncEnergy, syncDerived, addXp, clone, SAVE_VERSION } from './mockState'
-import { cloudEnabled, cloudLogin, cloudSave, cloudLeaderboard, cloudFriends, cloudClaimReferral, cloudChannelCheck, cloudChannelClaim } from './cloud'
+import { cloudEnabled, cloudLogin, cloudSave, cloudLeaderboard, cloudFriends, cloudClaimReferral, cloudClaimInviteTask, cloudChannelCheck, cloudChannelClaim, cloudChickenFlightActive, cloudChickenFlightCollect, cloudChickenFlightStart } from './cloud'
 import { setSaveOwner } from './storage'
 import { getTelegramUser } from './telegram'
 
@@ -33,6 +34,15 @@ export function renameCost(s: Pick<GameState, 'profile'>): number {
 }
 let activeSession: Omit<PlaySessionTicket, 'state'> | null = null
 let activeMode: (Omit<PlaySessionTicket, 'state'> & { mode: ExtraMode }) | null = null
+let activeFlight: {
+  sessionId: string
+  amount: number
+  startedAt: number
+  crashAt: number
+  crashMultiplier: number
+  settled?: boolean
+} | null = null
+let flightHistory: ChickenFlightHistoryEntry[] = []
 
 let booted: Promise<void> | null = null
 
@@ -93,6 +103,34 @@ function commit(): GameState {
   writeSave(db())
   cloudSave(db())
   return clone(db())
+}
+
+function pushFlightHistory(entry: ChickenFlightHistoryEntry) {
+  flightHistory = [entry, ...flightHistory.filter((x) => x.id !== entry.id)].slice(0, CHICKEN_FLIGHT.historyLimit)
+}
+
+function flightStats() {
+  return {
+    flights: flightHistory.length,
+    bestMultiplier: flightHistory.reduce((m, x) => Math.max(m, x.status === 'COLLECTED' ? x.multiplier : 0), 0),
+    largestReward: flightHistory.reduce((m, x) => Math.max(m, x.reward), 0),
+    totalCollected: flightHistory.reduce((m, x) => m + (x.status === 'COLLECTED' ? x.reward : 0), 0),
+  }
+}
+
+function settleExpiredFlight(s: GameState, now: number) {
+  if (!activeFlight || activeFlight.settled || now < activeFlight.crashAt) return
+  const f = activeFlight
+  activeFlight = null
+  pushFlightHistory({
+    id: f.sessionId,
+    status: 'CRASHED',
+    amount: f.amount,
+    multiplier: f.crashMultiplier,
+    reward: 0,
+    createdAt: f.startedAt,
+  })
+  s.stats.bestPlay = Math.max(s.stats.bestPlay, f.amount)
 }
 
 export const mockApi: GameApi = {
@@ -344,6 +382,104 @@ export const mockApi: GameApi = {
     return { eggsAwarded, state: commit() }
   },
 
+  async chickenFlightActive() {
+    await boot()
+    if (cloudEnabled()) {
+      const res = await cloudChickenFlightActive()
+      state = res.state
+      syncDerived(state)
+      writeSave(state)
+      return res
+    }
+    await wait()
+    const s = db()
+    settleExpiredFlight(s, Date.now())
+    return {
+      session: activeFlight
+        ? {
+            sessionId: activeFlight.sessionId,
+            amount: activeFlight.amount,
+            startedAt: activeFlight.startedAt,
+            status: 'FLYING',
+            state: commit(),
+          }
+        : null,
+      history: flightHistory,
+      stats: flightStats(),
+      state: commit(),
+    }
+  },
+
+  async chickenFlightStart(rawAmount) {
+    await boot()
+    if (cloudEnabled()) {
+      const res = await cloudChickenFlightStart(rawAmount)
+      state = res.state
+      syncDerived(state)
+      writeSave(state)
+      return res
+    }
+    await wait()
+    const s = db()
+    const now = Date.now()
+    settleExpiredFlight(s, now)
+    if (activeFlight) throw new ApiError('FLIGHT_ACTIVE')
+    const amount = Math.floor(Number(rawAmount))
+    if (!Number.isFinite(amount) || amount < CHICKEN_FLIGHT.minAmount || amount > CHICKEN_FLIGHT.maxAmount) throw new ApiError('BAD_AMOUNT')
+    if (amount > s.balance.eggs) throw new ApiError('NOT_ENOUGH_EGGS')
+    const crashMultiplier = randomCrashMultiplier()
+    s.balance.eggs -= amount
+    activeFlight = {
+      sessionId: `cf_${now}`,
+      amount,
+      startedAt: now,
+      crashAt: now + flightElapsedForMultiplier(crashMultiplier),
+      crashMultiplier,
+    }
+    return { sessionId: activeFlight.sessionId, amount, startedAt: now, status: 'FLYING', state: commit() }
+  },
+
+  async chickenFlightCollect(sessionId) {
+    await boot()
+    if (cloudEnabled()) {
+      const res = await cloudChickenFlightCollect(sessionId)
+      state = res.state
+      syncDerived(state)
+      writeSave(state)
+      return res
+    }
+    await wait()
+    const s = db()
+    const f = activeFlight
+    if (!f || f.sessionId !== sessionId || f.settled) throw new ApiError('BAD_SESSION')
+    f.settled = true
+    activeFlight = null
+    const now = Date.now()
+    const crashed = now >= f.crashAt
+    const multiplier = crashed ? f.crashMultiplier : flightMultiplierAt(now - f.startedAt)
+    const reward = crashed ? 0 : flightReward(f.amount, multiplier)
+    if (!crashed) s.balance.eggs += reward
+    s.stats.bestPlay = Math.max(s.stats.bestPlay, reward || f.amount)
+    const entry: ChickenFlightHistoryEntry = {
+      id: f.sessionId,
+      status: crashed ? 'CRASHED' : 'COLLECTED',
+      amount: f.amount,
+      multiplier,
+      reward,
+      createdAt: f.startedAt,
+    }
+    pushFlightHistory(entry)
+    return {
+      success: !crashed,
+      status: entry.status,
+      multiplier,
+      reward,
+      amount: f.amount,
+      state: commit(),
+      history: flightHistory,
+    }
+  },
+
   async leaderboard(kind) {
     if (!cloudEnabled()) return { top: [], me: null, online: false }
     const res = await cloudLeaderboard(kind)
@@ -361,6 +497,22 @@ export const mockApi: GameApi = {
     const s = db()
     s.balance.coins += coins // не считается продажей — 12% с 12% не бывает
     return { coins, state: commit() }
+  },
+
+  async claimInviteTask(target) {
+    const s = db()
+    if (cloudEnabled()) {
+      const res = await cloudClaimInviteTask(target)
+      state = res.state
+      syncDerived(state)
+      writeSave(state)
+      return res
+    }
+    await wait()
+    const key = target === 5 ? 'invite5Claimed' : target === 10 ? 'invite10Claimed' : 'invite25Claimed'
+    if (s.events[key]) throw new ApiError('BONUS_CLAIMED')
+    // В обычном браузере рефералы проверить нельзя, поэтому задача честно недоступна.
+    throw new ApiError('OFFLINE')
   },
 
   // Подписку на канал проверяет сервер (спрашивает Telegram), он же выдаёт бонус один раз.

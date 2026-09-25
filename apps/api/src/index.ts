@@ -14,7 +14,8 @@
 //   POST /api/channel/claim — бонус за подписку (один раз на аккаунт)
 
 import { verifyInitData, type TgAuth } from './telegramAuth'
-import { ensureSchema, type D1Database, type UserRow } from './db'
+import { ensureSchema, type ChickenFlightRow, type D1Database, type UserRow } from './db'
+import { CHICKEN_FLIGHT, flightElapsedForMultiplier, flightMultiplierAt, flightReward, randomCrashMultiplier } from './chickenFlight'
 
 interface Env {
   DB: D1Database
@@ -87,7 +88,9 @@ async function handleAuth(a: TgAuth, env: Env): Promise<Response> {
 
 interface SavedState {
   profile?: { farmName?: string; level?: number; xp?: number; avatar?: string }
-  balance?: { coins?: number }
+  balance?: { coins?: number; eggs?: number }
+  events?: { invite5Claimed?: boolean; invite10Claimed?: boolean; invite25Claimed?: boolean; channelSubscribed?: boolean; channelBonusClaimed?: boolean }
+  season?: { points?: number }
   chickens?: unknown[]
   stats?: { soldCoins?: number; bestPlay?: number }
 }
@@ -213,6 +216,39 @@ async function handleRefClaim(a: TgAuth, env: Env): Promise<Response> {
   return json({ coins })
 }
 
+const INVITE_TASK_REWARDS = {
+  5: { coins: 20000, birdPoints: 0 },
+  10: { coins: 50000, birdPoints: 0 },
+  25: { coins: 150000, birdPoints: 250 },
+} as const
+
+async function handleInviteTaskClaim(a: TgAuth, req: Request, env: Env): Promise<Response> {
+  const body = (await req.json().catch(() => null)) as { target?: unknown } | null
+  const target = Number(body?.target)
+  if (target !== 5 && target !== 10 && target !== 25) return fail('BAD_AMOUNT')
+  const friends = (await env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE referred_by = ?')
+    .bind(a.user.id)
+    .first<{ n: number }>())?.n ?? 0
+  if (friends < target) return fail('NOT_ENOUGH_FRIENDS')
+  const row = await env.DB.prepare('SELECT state FROM users WHERE id = ?').bind(a.user.id).first<Pick<UserRow, 'state'>>()
+  if (!row) return fail('NO_USER', 404)
+  const state = parseState(row.state)
+  state.balance = { ...(state.balance ?? {}), coins: num(state.balance?.coins) }
+  state.events = { ...(state.events ?? {}) }
+  const key = target === 5 ? 'invite5Claimed' : target === 10 ? 'invite10Claimed' : 'invite25Claimed'
+  if (state.events[key]) return fail('BONUS_CLAIMED')
+  const { coins, birdPoints } = INVITE_TASK_REWARDS[target]
+  state.events[key] = true
+  state.balance.coins = num(state.balance.coins + coins)
+  if (birdPoints > 0) {
+    state.season = { ...(state.season ?? {}), points: num(state.season?.points) + birdPoints }
+  }
+  await env.DB.prepare('UPDATE users SET state = ?, coins = ?, updated_at = ? WHERE id = ?')
+    .bind(JSON.stringify(state), state.balance.coins, Date.now(), a.user.id)
+    .run()
+  return json({ coins, birdPoints, state })
+}
+
 /**
  * Подписан ли игрок на канал — спрашиваем у Telegram (getChatMember).
  * Работает, только если бот добавлен в канал администратором.
@@ -251,6 +287,173 @@ async function handleChannel(a: TgAuth, env: Env, claim: boolean): Promise<Respo
   return json({ subscribed: true, claimed: true, coins: CHANNEL_BONUS_COINS })
 }
 
+function parseState(text: string | null): SavedState {
+  if (!text) return {}
+  try {
+    return JSON.parse(text) as SavedState
+  } catch {
+    return {}
+  }
+}
+
+async function getStateForFlight(a: TgAuth, env: Env): Promise<{ row: Pick<UserRow, 'state'>; state: SavedState }> {
+  const row = await env.DB.prepare('SELECT state FROM users WHERE id = ?').bind(a.user.id).first<Pick<UserRow, 'state'>>()
+  if (!row) throw new Error('NO_USER')
+  return { row, state: parseState(row.state) }
+}
+
+function flightPublic(row: ChickenFlightRow) {
+  return {
+    sessionId: row.id,
+    amount: row.amount,
+    startedAt: row.started_at,
+    status: row.status,
+  }
+}
+
+async function settleExpiredFlights(userId: number, env: Env): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE chicken_flights SET status = 'CRASHED'
+     WHERE user_id = ? AND status = 'FLYING' AND crash_at <= ?`,
+  )
+    .bind(userId, Date.now())
+    .run()
+}
+
+async function flightHistory(a: TgAuth, env: Env) {
+  const rows = await env.DB.prepare(
+    `SELECT id, status, amount, COALESCE(collect_multiplier, crash_multiplier) AS multiplier, reward, created_at
+     FROM chicken_flights WHERE user_id = ? AND status != 'FLYING'
+     ORDER BY created_at DESC LIMIT ?`,
+  )
+    .bind(a.user.id, CHICKEN_FLIGHT.historyLimit)
+    .all<{ id: string; status: 'COLLECTED' | 'CRASHED'; amount: number; multiplier: number; reward: number; created_at: number }>()
+  return rows.results.map((r) => ({
+    id: r.id,
+    status: r.status,
+    amount: r.amount,
+    multiplier: r.multiplier,
+    reward: r.reward,
+    createdAt: r.created_at,
+  }))
+}
+
+async function handleFlightActive(a: TgAuth, env: Env): Promise<Response> {
+  await settleExpiredFlights(a.user.id, env)
+  const { state } = await getStateForFlight(a, env)
+  const active = await env.DB.prepare(
+    `SELECT * FROM chicken_flights WHERE user_id = ? AND status = 'FLYING'
+     ORDER BY created_at DESC LIMIT 1`,
+  )
+    .bind(a.user.id)
+    .first<ChickenFlightRow>()
+  const history = await flightHistory(a, env)
+  return json({
+    session: active ? { ...flightPublic(active), state } : null,
+    history,
+    stats: {
+      flights: history.length,
+      bestMultiplier: history.reduce((m, x) => Math.max(m, x.status === 'COLLECTED' ? x.multiplier : 0), 0),
+      largestReward: history.reduce((m, x) => Math.max(m, x.reward), 0),
+      totalCollected: history.reduce((m, x) => m + (x.status === 'COLLECTED' ? x.reward : 0), 0),
+    },
+    state,
+  })
+}
+
+async function handleFlightStart(a: TgAuth, req: Request, env: Env): Promise<Response> {
+  await settleExpiredFlights(a.user.id, env)
+  const body = (await req.json().catch(() => null)) as { amount?: unknown } | null
+  const amount = Math.floor(Number(body?.amount))
+  if (!Number.isFinite(amount) || amount < CHICKEN_FLIGHT.minAmount || amount > CHICKEN_FLIGHT.maxAmount) return fail('BAD_AMOUNT')
+  const already = await env.DB.prepare('SELECT id FROM chicken_flights WHERE user_id = ? AND status = ? LIMIT 1')
+    .bind(a.user.id, 'FLYING')
+    .first()
+  if (already) return fail('FLIGHT_ACTIVE', 409)
+  const { state } = await getStateForFlight(a, env)
+  const eggs = num(state.balance?.eggs)
+  if (amount > eggs) return fail('NOT_ENOUGH_EGGS')
+
+  const now = Date.now()
+  const crashMultiplier = randomCrashMultiplier()
+  const sessionId = crypto.randomUUID()
+  state.balance = { ...(state.balance ?? {}), eggs: eggs - amount }
+  const stateText = JSON.stringify(state)
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET state = ?, updated_at = ? WHERE id = ?').bind(stateText, now, a.user.id),
+    env.DB.prepare(
+      `INSERT INTO chicken_flights
+       (id, user_id, amount, started_at, crash_at, crash_multiplier, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'FLYING', ?)`,
+    ).bind(sessionId, a.user.id, amount, now, now + flightElapsedForMultiplier(crashMultiplier), crashMultiplier, now),
+  ])
+  return json({ sessionId, amount, startedAt: now, status: 'FLYING', state })
+}
+
+async function handleFlightCollect(a: TgAuth, req: Request, env: Env): Promise<Response> {
+  const body = (await req.json().catch(() => null)) as { sessionId?: unknown } | null
+  const sessionId = String(body?.sessionId ?? '')
+  if (!sessionId) return fail('BAD_SESSION')
+  const row = await env.DB.prepare('SELECT * FROM chicken_flights WHERE id = ? AND user_id = ?')
+    .bind(sessionId, a.user.id)
+    .first<ChickenFlightRow>()
+  if (!row) return fail('BAD_SESSION', 404)
+
+  const { state } = await getStateForFlight(a, env)
+  if (row.status !== 'FLYING') {
+    const history = await flightHistory(a, env)
+    return json({
+      success: row.status === 'COLLECTED',
+      status: row.status,
+      multiplier: row.collect_multiplier ?? row.crash_multiplier,
+      reward: row.reward,
+      amount: row.amount,
+      state,
+      history,
+    })
+  }
+
+  const now = Date.now()
+  const crashed = now >= row.crash_at
+  const multiplier = crashed ? row.crash_multiplier : flightMultiplierAt(now - row.started_at)
+  const reward = crashed ? 0 : flightReward(row.amount, multiplier)
+  if (!crashed) {
+    const eggs = num(state.balance?.eggs)
+    state.balance = { ...(state.balance ?? {}), eggs: eggs + reward }
+  }
+  const stateText = JSON.stringify(state)
+  const status = crashed ? 'CRASHED' : 'COLLECTED'
+  const res = (await env.DB.prepare(
+    `UPDATE chicken_flights SET status = ?, collect_multiplier = ?, reward = ?
+     WHERE id = ? AND user_id = ? AND status = 'FLYING'`,
+  )
+    .bind(status, multiplier, reward, row.id, a.user.id)
+    .run()) as { meta?: { changes?: number } }
+  if (res?.meta?.changes === 0) {
+    const fresh = await env.DB.prepare('SELECT * FROM chicken_flights WHERE id = ? AND user_id = ?')
+      .bind(sessionId, a.user.id)
+      .first<ChickenFlightRow>()
+    if (!fresh) return fail('BAD_SESSION', 404)
+    const history = await flightHistory(a, env)
+    return json({
+      success: fresh.status === 'COLLECTED',
+      status: fresh.status,
+      multiplier: fresh.collect_multiplier ?? fresh.crash_multiplier,
+      reward: fresh.reward,
+      amount: fresh.amount,
+      state,
+      history,
+    })
+  }
+  if (!crashed) {
+    await env.DB.prepare('UPDATE users SET state = ?, best_play = MAX(best_play, ?), updated_at = ? WHERE id = ?')
+      .bind(stateText, reward, now, a.user.id)
+      .run()
+  }
+  const history = await flightHistory(a, env)
+  return json({ success: !crashed, status, multiplier, reward, amount: row.amount, state, history })
+}
+
 async function handleApi(req: Request, env: Env, path: string): Promise<Response> {
   if (!env.DB) return fail('NO_DB', 503)
   if (!env.BOT_TOKEN) return fail('NO_BOT_TOKEN', 503)
@@ -263,8 +466,12 @@ async function handleApi(req: Request, env: Env, path: string): Promise<Response
   if (path === '/api/leaderboard' && m === 'GET') return handleLeaderboard(a, env, new URL(req.url).searchParams.get('by') ?? 'coins')
   if (path === '/api/friends' && m === 'GET') return handleFriends(a, env)
   if (path === '/api/ref/claim' && m === 'POST') return handleRefClaim(a, env)
+  if (path === '/api/ref/task-claim' && m === 'POST') return handleInviteTaskClaim(a, req, env)
   if (path === '/api/channel/check' && m === 'POST') return handleChannel(a, env, false)
   if (path === '/api/channel/claim' && m === 'POST') return handleChannel(a, env, true)
+  if (path === '/api/games/chicken-flight/active' && m === 'GET') return handleFlightActive(a, env)
+  if (path === '/api/games/chicken-flight/start' && m === 'POST') return handleFlightStart(a, req, env)
+  if (path === '/api/games/chicken-flight/collect' && m === 'POST') return handleFlightCollect(a, req, env)
   return fail('NOT_FOUND', 404)
 }
 
