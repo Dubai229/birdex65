@@ -12,7 +12,8 @@ export const ru = {
     collect: 'Собрать',
     perHour: '{n} яиц / час',
     storage: 'Склад',
-    storageFull: 'Склад полон',
+    storageFull: 'Склад полон — улучши его!',
+    storageMaxed: 'Склад максимальный',
     chooseChicken: 'Выбрать курицу',
     onFarm: 'На ферме',
     nothingYet: 'Яйца ещё не накопились',
@@ -36,6 +37,7 @@ export const ru = {
     tries: 'Попыток: {n}',
     energyInfo: 'Попытка стоит {cost} ⚡. Энергия полностью восстанавливается за {hours} ч.',
     energyMaxed: 'Энергия прокачана до максимума',
+    eggValue: '1 пойманное яйцо = {n} 🥚 · ур. {level}',
   },
 
   chickens: {
@@ -99,7 +101,12 @@ export const ru = {
     save: 'Сохранить',
     sound: 'Звуки', music: 'Музыка', haptics: 'Вибрация',
     volume: 'Громкость',
+    promoTitle: 'Бонус-код',
+    promoPlaceholder: 'Введите код',
+    promoApply: 'Активировать',
+    promoSuccess: 'Код активирован: {reward}',
   },
+  levelUp: { title: 'Уровень повышен', level: 'Уровень {n}!' },
   common: { close: 'Закрыть', loading: 'Загрузка фермы…' },
   errors: {
     NOT_ENOUGH_COINS: 'Не хватает монет',
@@ -112,6 +119,8 @@ export const ru = {
     NO_ENERGY: 'Недостаточно энергии',
     BAD_SESSION: 'Сессия устарела',
     BAD_NAME: 'Введите название',
+    CODE_INVALID: 'Такого кода нет',
+    CODE_USED: 'Этот код уже активирован',
     UNKNOWN: 'Что-то пошло не так',
   },
 }

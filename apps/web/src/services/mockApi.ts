@@ -10,6 +10,9 @@ import { sellValue } from '@/economy/market'
 import { rewardStatus, effectiveStreakDay, rewardAmount } from '@/economy/reward'
 import { maxPlausibleEggs } from '@/economy/playDifficulty'
 import { energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
+import { storageUpgradeCost, STORAGE_MAX_LEVEL } from '@/economy/storage'
+import { playEggValue } from '@/economy/progression'
+import { findPromo, normalizeCode } from '@/config/promo'
 import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
 import { loadSave, writeSave } from './storage'
@@ -60,7 +63,6 @@ export const mockApi: GameApi = {
     })
     s.balance.eggs += collected
     s.lastProductionAt = now
-    addXp(s, Math.ceil(collected / 20))
     return { collected, state: commit() }
   },
 
@@ -73,7 +75,6 @@ export const mockApi: GameApi = {
     const coins = sellValue(eggs)
     s.balance.eggs -= eggs
     s.balance.coins += coins
-    addXp(s, Math.ceil(eggs / 25))
     return { eggsSold: eggs, coinsReceived: coins, state: commit() }
   },
 
@@ -88,7 +89,7 @@ export const mockApi: GameApi = {
     s.balance.coins -= def.price
     s.chickens.push({ id: `c_${Date.now()}`, key, level: 1, acquiredAt: Date.now() })
     syncDerived(s)
-    addXp(s, 50)
+    addXp(s, def.price)
     return commit()
   },
 
@@ -105,7 +106,7 @@ export const mockApi: GameApi = {
     s.balance.coins -= cost
     chicken.level += 1
     syncDerived(s)
-    addXp(s, 25)
+    addXp(s, cost)
     return commit()
   },
 
@@ -120,8 +121,41 @@ export const mockApi: GameApi = {
     s.energyLevel += 1
     syncDerived(s)
     // +50 к максимуму сразу добавляет и +50 к текущей энергии
-    s.balance.energy = Math.min(s.balance.energyMax, s.balance.energy + ECONOMY.energy.upgradeStep)
+    // бонусная энергия сверх максимума не срезается
+    s.balance.energy = Math.max(s.balance.energy, Math.min(s.balance.energyMax, s.balance.energy + ECONOMY.energy.upgradeStep))
     return commit()
+  },
+
+  async upgradeStorage() {
+    await wait()
+    const s = db()
+    if (s.storageLevel >= STORAGE_MAX_LEVEL) throw new ApiError('MAX_LEVEL')
+    const cost = storageUpgradeCost(s.storageLevel)
+    if (s.balance.coins < cost) throw new ApiError('NOT_ENOUGH_COINS')
+    // Сначала собираем то, что упёрлось в старый склад.
+    await mockApi.collect()
+    s.balance.coins -= cost
+    s.storageLevel += 1
+    syncDerived(s)
+    return commit()
+  },
+
+  async redeemCode(raw) {
+    await wait()
+    const s = db()
+    const promo = findPromo(raw)
+    if (!promo) throw new ApiError('CODE_INVALID')
+    const code = normalizeCode(raw)
+    if (s.redeemedCodes.includes(code)) throw new ApiError('CODE_USED')
+    s.redeemedCodes.push(code)
+    const coins = promo.coins ?? 0
+    const energy = promo.energy ?? 0
+    s.balance.coins += coins
+    if (energy > 0) {
+      syncEnergy(s, Date.now())
+      s.balance.energy += energy
+    }
+    return { coins, energy, state: commit() }
   },
 
   async displayChicken(chickenId) {
@@ -171,13 +205,13 @@ export const mockApi: GameApi = {
     const caught = summary.normalCaught + summary.goldenCaught
     const plausible = maxPlausibleEggs(duration)
     const ratio = caught > 0 ? Math.min(1, plausible / caught) : 0
+    // Цена яйца в Play зависит от уровня игрока (см. economy/progression).
     const raw =
-      summary.normalCaught * ECONOMY.play.normalReward +
-      summary.goldenCaught * ECONOMY.play.goldenReward
+      (summary.normalCaught * ECONOMY.play.normalReward + summary.goldenCaught * ECONOMY.play.goldenReward) *
+      playEggValue(s.profile.level)
     const free = Math.max(0, s.balance.storageCapacity - s.balance.eggs)
     const eggsAwarded = Math.max(0, Math.min(Math.floor(raw * ratio), free))
     s.balance.eggs += eggsAwarded
-    addXp(s, Math.ceil(eggsAwarded / 10))
     return { eggsAwarded, state: commit() }
   },
 

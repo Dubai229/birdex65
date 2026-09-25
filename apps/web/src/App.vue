@@ -20,6 +20,7 @@ import RewardSheet from '@/features/rewards/RewardSheet.vue'
 import RatingSheet from '@/features/social/RatingSheet.vue'
 import FriendsSheet from '@/features/social/FriendsSheet.vue'
 import SettingsSheet from '@/features/settings/SettingsSheet.vue'
+import LevelUpBanner from '@/components/effects/LevelUpBanner.vue'
 import { t } from '@/i18n'
 
 const game = useGameStore()
@@ -82,6 +83,7 @@ onUnmounted(() => {
     <FriendsSheet />
     <SettingsSheet />
     <ToastLayer />
+    <LevelUpBanner />
   </div>
 </template>
 

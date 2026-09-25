@@ -62,6 +62,10 @@ export interface GameState {
   displayedChickenId: string | null
   /** Уровень прокачки максимума энергии (0 = 300). */
   energyLevel: number
+  /** Уровень прокачки склада (0 = 1 000 яиц). */
+  storageLevel: number
+  /** Уже активированные бонус-коды. */
+  redeemedCodes: string[]
   lastProductionAt: number
   energyUpdatedAt: number
   reward: RewardState

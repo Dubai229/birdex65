@@ -6,6 +6,7 @@ import type { GameState, LeaderboardEntry, Friend } from '@/types/game'
 export interface CollectResult { collected: number; state: GameState }
 export interface SellResult { eggsSold: number; coinsReceived: number; state: GameState }
 export interface RewardResult { coins: number; day: number; state: GameState }
+export interface PromoResult { coins: number; energy: number; state: GameState }
 
 export interface PlaySessionTicket {
   sessionId: string
@@ -31,6 +32,8 @@ export interface GameApi {
   buyChicken(key: string): Promise<GameState>
   upgradeChicken(chickenId: string): Promise<GameState>
   upgradeEnergy(): Promise<GameState>
+  upgradeStorage(): Promise<GameState>
+  redeemCode(code: string): Promise<PromoResult>
   displayChicken(chickenId: string): Promise<GameState>
   claimReward(): Promise<RewardResult>
   startPlay(): Promise<PlaySessionTicket>

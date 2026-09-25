@@ -32,6 +32,8 @@ export function currentEnergy(params: {
   now: number
 }): number {
   const { energy, energyMax, energyUpdatedAt, now } = params
+  // Сверх максимума (бонус-код) — не восстанавливается и не срезается.
+  if (energy >= energyMax) return Math.floor(energy)
   const regen = (Math.max(0, now - energyUpdatedAt) / 1000) * energyRegenPerSecond(energyMax)
   return Math.min(energyMax, Math.floor(energy + regen))
 }
