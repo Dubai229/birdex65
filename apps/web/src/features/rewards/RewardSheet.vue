@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Награда недели: 7 дней серии, забирать раз в день.
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -34,7 +35,7 @@ async function claim() {
     <div class="days">
       <div v-for="(coins, i) in ECONOMY.rewardStreak" :key="i" class="day card" :class="[dayState(i), { last: i === 6 }]">
         <div class="muted small">{{ t('reward.day', { n: i + 1 }) }}</div>
-        <div class="icon">{{ i === 6 ? '🎁' : '🪙' }}</div>
+        <div class="icon"><template v-if="i === 6">🎁</template><CoinIcon v-else :size="28" /></div>
         <div class="val">{{ formatNumber(coins) }}</div>
         <div v-if="dayState(i) === 'done'" class="check">✔</div>
       </div>

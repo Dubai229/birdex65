@@ -7,8 +7,9 @@
 //   POST /api/auth         — вход; создаёт игрока, записывает реферала (startapp=ref_<id>)
 //   GET  /api/state        — сохранённый прогресс
 //   PUT  /api/state        — сохранить прогресс
-//   GET  /api/leaderboard  — топ-50 настоящих игроков + моё место
-//   GET  /api/friends      — кого я пригласил
+//   GET  /api/leaderboard?by=coins|play — топ-50 по монетам / по рекорду в Play + моё место
+//   GET  /api/friends      — кого я пригласил + сколько 12% накопилось
+//   POST /api/ref/claim    — забрать накопленные 12%
 
 import { verifyInitData, type TgAuth } from './telegramAuth'
 import { ensureSchema, type D1Database, type UserRow } from './db'
@@ -23,6 +24,8 @@ interface Env {
 const MAX_STATE_BYTES = 64 * 1024
 /** Друг считается активным, когда дорос до этого уровня. */
 const ACTIVE_FRIEND_LEVEL = 2
+/** Доля с продажи яиц друга, которая идёт пригласившему. */
+const REF_SHARE = 0.12
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
@@ -75,9 +78,14 @@ async function handleAuth(a: TgAuth, env: Env): Promise<Response> {
 }
 
 interface SavedState {
-  profile?: { farmName?: string; level?: number; xp?: number }
+  profile?: { farmName?: string; level?: number; xp?: number; avatar?: string }
+  balance?: { coins?: number }
   chickens?: unknown[]
+  stats?: { soldCoins?: number; bestPlay?: number }
 }
+
+/** Целое неотрицательное число из сохранения (мусор → 0). */
+const num = (v: unknown, max = 1e15) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)))
 
 async function handleSave(a: TgAuth, req: Request, env: Env): Promise<Response> {
   const text = await req.text()
@@ -89,29 +97,56 @@ async function handleSave(a: TgAuth, req: Request, env: Env): Promise<Response> 
     return fail('BAD_JSON')
   }
   // ⚠️ Экономика пока считается в игре — сервер только хранит и базово проверяет.
-  const level = Math.max(1, Math.min(50, Math.floor(Number(state.profile?.level) || 1)))
-  const xp = Math.max(0, Math.floor(Number(state.profile?.xp) || 0))
+  const level = Math.max(1, Math.min(50, num(state.profile?.level) || 1))
+  const xp = num(state.profile?.xp)
+  const coins = num(state.balance?.coins)
   const chickens = Array.isArray(state.chickens) ? Math.min(36, state.chickens.length) : 1
   const farmName = String(state.profile?.farmName ?? '').slice(0, 24) || null
-  const res = await env.DB.prepare(
-    'UPDATE users SET state = ?, level = ?, xp = ?, chickens = ?, farm_name = ?, updated_at = ? WHERE id = ?',
-  )
-    .bind(text, level, xp, chickens, farmName, Date.now(), a.user.id)
-    .run() as { meta?: { changes?: number } }
-  if (res?.meta?.changes === 0) return fail('NO_USER', 404)
-  return json({ ok: true })
+  const avatar = /^[a-z0-9_]{1,24}$/.test(String(state.profile?.avatar ?? '')) ? String(state.profile!.avatar) : null
+  const bestPlay = num(state.stats?.bestPlay)
+
+  // Два сохранения могут прийти одновременно: обновляем только если sold_total не изменился
+  // с момента чтения (иначе перечитываем) — так 12% не начислятся дважды.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const me = await env.DB.prepare('SELECT sold_total, referred_by FROM users WHERE id = ?')
+      .bind(a.user.id)
+      .first<Pick<UserRow, 'sold_total' | 'referred_by'>>()
+    if (!me) return fail('NO_USER', 404)
+    // Продажи считаем по максимуму: если сохранение "откатилось", повторно не начисляем.
+    const sold = Math.max(me.sold_total, num(state.stats?.soldCoins))
+    const refBonus = me.referred_by ? Math.floor(sold * REF_SHARE) - Math.floor(me.sold_total * REF_SHARE) : 0
+    const res = (await env.DB.prepare(
+      `UPDATE users SET state = ?, level = ?, xp = ?, coins = ?, chickens = ?, farm_name = ?, avatar = ?,
+         best_play = MAX(best_play, ?), sold_total = ?, ref_given = ref_given + ?, updated_at = ?
+       WHERE id = ? AND sold_total = ?`,
+    )
+      .bind(text, level, xp, coins, chickens, farmName, avatar, bestPlay, sold, refBonus, Date.now(), a.user.id, me.sold_total)
+      .run()) as { meta?: { changes?: number } }
+    if (res?.meta?.changes === 0) continue
+    // 12% с продажи яиц друга — пригласившему, он забирает кнопкой в "Друзьях".
+    if (me.referred_by && refBonus > 0) {
+      await env.DB.prepare('UPDATE users SET ref_pending = ref_pending + ?, ref_total = ref_total + ? WHERE id = ?')
+        .bind(refBonus, refBonus, me.referred_by)
+        .run()
+    }
+    return json({ ok: true })
+  }
+  return fail('BUSY', 409)
 }
 
-async function handleLeaderboard(a: TgAuth, env: Env): Promise<Response> {
+/** Рейтинг: by=coins — у кого больше монет, by=play — рекорд яиц за одну игру. */
+async function handleLeaderboard(a: TgAuth, env: Env, by: string): Promise<Response> {
+  const col = by === 'play' ? 'best_play' : 'coins'
   const top = await env.DB.prepare(
-    'SELECT id, first_name, farm_name, level, xp FROM users ORDER BY xp DESC, created_at ASC LIMIT 50',
-  ).all<Pick<UserRow, 'id' | 'first_name' | 'farm_name' | 'level' | 'xp'>>()
-  const me = await env.DB.prepare('SELECT xp, created_at FROM users WHERE id = ?')
+    `SELECT id, first_name, farm_name, level, avatar, ${col} AS value FROM users
+     WHERE ${col} > 0 ORDER BY ${col} DESC, created_at ASC LIMIT 50`,
+  ).all<Pick<UserRow, 'id' | 'first_name' | 'farm_name' | 'level' | 'avatar'> & { value: number }>()
+  const me = await env.DB.prepare(`SELECT ${col} AS value, created_at FROM users WHERE id = ?`)
     .bind(a.user.id)
-    .first<{ xp: number; created_at: number }>()
-  const rank = me
-    ? ((await env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE xp > ? OR (xp = ? AND created_at < ?)')
-        .bind(me.xp, me.xp, me.created_at)
+    .first<{ value: number; created_at: number }>()
+  const rank = me && me.value > 0
+    ? ((await env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE ${col} > ? OR (${col} = ? AND created_at < ?)`)
+        .bind(me.value, me.value, me.created_at)
         .first<{ n: number }>())?.n ?? 0) + 1
     : null
   return json({
@@ -120,27 +155,52 @@ async function handleLeaderboard(a: TgAuth, env: Env): Promise<Response> {
       name: r.first_name,
       farmName: r.farm_name,
       level: r.level,
-      farmValue: r.xp,
+      avatar: r.avatar,
+      value: r.value,
       isMe: r.id === a.user.id,
     })),
-    me: me ? { rank, farmValue: me.xp } : null,
+    me: me && rank ? { rank, value: me.value } : null,
   })
 }
 
 async function handleFriends(a: TgAuth, env: Env): Promise<Response> {
   const rows = await env.DB.prepare(
-    'SELECT id, first_name, level FROM users WHERE referred_by = ? ORDER BY created_at DESC LIMIT 200',
+    `SELECT id, first_name, farm_name, level, coins, avatar, ref_given FROM users
+     WHERE referred_by = ? ORDER BY ref_given DESC, created_at DESC LIMIT 200`,
   )
     .bind(a.user.id)
-    .all<Pick<UserRow, 'id' | 'first_name' | 'level'>>()
+    .all<Pick<UserRow, 'id' | 'first_name' | 'farm_name' | 'level' | 'coins' | 'avatar' | 'ref_given'>>()
+  const me = await env.DB.prepare('SELECT ref_pending, ref_total FROM users WHERE id = ?')
+    .bind(a.user.id)
+    .first<Pick<UserRow, 'ref_pending' | 'ref_total'>>()
   return json({
     friends: rows.results.map((r) => ({
       id: String(r.id),
       name: r.first_name,
+      farmName: r.farm_name,
       level: r.level,
+      coins: r.coins,
+      avatar: r.avatar,
+      earned: r.ref_given,
       active: r.level >= ACTIVE_FRIEND_LEVEL,
     })),
+    pending: me?.ref_pending ?? 0,
+    total: me?.ref_total ?? 0,
   })
+}
+
+/** Забрать накопленные 12% с друзей. Списываем ровно то, что отдали (новое не теряется). */
+async function handleRefClaim(a: TgAuth, env: Env): Promise<Response> {
+  const me = await env.DB.prepare('SELECT ref_pending FROM users WHERE id = ?')
+    .bind(a.user.id)
+    .first<Pick<UserRow, 'ref_pending'>>()
+  const coins = me?.ref_pending ?? 0
+  if (coins > 0) {
+    await env.DB.prepare('UPDATE users SET ref_pending = ref_pending - ? WHERE id = ? AND ref_pending >= ?')
+      .bind(coins, a.user.id, coins)
+      .run()
+  }
+  return json({ coins })
 }
 
 async function handleApi(req: Request, env: Env, path: string): Promise<Response> {
@@ -152,8 +212,9 @@ async function handleApi(req: Request, env: Env, path: string): Promise<Response
   const m = req.method
   if (path === '/api/auth' && m === 'POST') return handleAuth(a, env)
   if (path === '/api/state' && m === 'PUT') return handleSave(a, req, env)
-  if (path === '/api/leaderboard' && m === 'GET') return handleLeaderboard(a, env)
+  if (path === '/api/leaderboard' && m === 'GET') return handleLeaderboard(a, env, new URL(req.url).searchParams.get('by') ?? 'coins')
   if (path === '/api/friends' && m === 'GET') return handleFriends(a, env)
+  if (path === '/api/ref/claim' && m === 'POST') return handleRefClaim(a, env)
   return fail('NOT_FOUND', 404)
 }
 

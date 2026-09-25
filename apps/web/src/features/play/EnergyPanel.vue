@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Энергия для Play: сколько есть, когда хватит на попытку, прокачка максимума за монеты.
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -48,7 +49,7 @@ function upgrade() {
       :loading="game.pending === 'energy'"
       @click="upgrade"
     >
-      ⚡ {{ formatNumber(max) }} → {{ formatNumber(nextMax) }} · 🪙 {{ formatNumber(cost) }}
+      ⚡ {{ formatNumber(max) }} → {{ formatNumber(nextMax) }} · <CoinIcon :size="16" /> {{ formatNumber(cost) }}
     </PrimaryButton>
     <div v-else class="muted small center">{{ t('play.energyMaxed') }}</div>
   </div>

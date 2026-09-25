@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Вкладка 1 — Ферма: фон (листается стрелками), курица, сбор производства, быстрые действия.
 import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -42,7 +43,7 @@ function onCollected(n: number) {
         :per-hour="game.perHour"
         :bg-index="bgIndex"
         :bg-total="total"
-        @pick="ui.openSheet('chickenPicker')"
+        @pick="playSound('pickChicken', 0.8); ui.openSheet('chickenPicker')"
         @prev-bg="shiftBg(-1)"
         @next-bg="shiftBg(1)"
       />
@@ -61,7 +62,7 @@ function onCollected(n: number) {
     <div class="bottom">
       <OfflineCard @collected="onCollected" />
       <div class="actions">
-        <button class="card action" @click="ui.setTab('market')">💰 {{ t('farm.goSell') }}</button>
+        <button class="card action" @click="ui.setTab('market')"><CoinIcon :size="22" /> {{ t('farm.goSell') }}</button>
         <button class="card action" @click="ui.setTab('play')"><EggIcon :size="20" /> {{ t('farm.goPlay') }}</button>
       </div>
     </div>

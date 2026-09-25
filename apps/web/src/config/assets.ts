@@ -22,7 +22,11 @@ export const ASSETS = {
     /** Плашки "Рейтинг" и "Друзья" в шапке. */
     rating: '/assets/ui/rating.webp',
     friends: '/assets/ui/friends.webp',
-    coin: '/assets/ui/coin.png',
+    /** Монета — везде в игре вместо 🪙. */
+    coin: '/assets/ui/money.webp',
+    /** Иконки нижнего меню. */
+    farm: '/assets/ui/farm.webp',
+    shop: '/assets/ui/shop.webp',
     egg: '/assets/ui/egg_icon.png',
     energy: '/assets/ui/energy.png',
   },
@@ -72,6 +76,8 @@ export const SOUNDS = {
   buyEnergy: '/audio/sfx/buy_energy.mp3',
   /** Улучшение курицы во вкладке Курочки. */
   improve: '/audio/sfx/improve.mp3',
+  /** Кнопка "Выбрать курицу" и выбор курицы во вкладке Курочки. */
+  pickChicken: '/audio/sfx/pick_chicken.mp3',
   /** Повышение уровня игрока. */
   lvlup: '/audio/sfx/lvlup.mp3',
 } as const

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Верхняя панель вкладки "Курочки": выбранная курица, доход, улучшение.
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { getChickenDef } from '@/config/chickens'
+import { ASSETS } from '@/config/assets'
 import { chickenProduction } from '@/economy/production'
 import { upgradeCost, isMaxLevel } from '@/economy/upgrade'
 import { formatNumber } from '@/economy/format'
@@ -51,7 +53,7 @@ const isDisplayed = computed(() => owned.value && owned.value.id === game.displa
       <template v-if="owned">
         <template v-if="!maxed">
           <div class="muted small">{{ t('chickens.upgradeCost') }}</div>
-          <div class="val">🪙 {{ formatNumber(cost) }}</div>
+          <div class="val"><CoinIcon :size="18" /> {{ formatNumber(cost) }}</div>
           <PrimaryButton
             small
             :disabled="!affordable"
@@ -63,18 +65,19 @@ const isDisplayed = computed(() => owned.value && owned.value.id === game.displa
         </template>
         <div v-else class="val">{{ t('chickens.maxLevel') }}</div>
         <button v-if="!isDisplayed" class="link" @click="game.displayChicken(owned.id)">
-          🏡 {{ t('chickens.display') }}
+          <img class="mini-ico" :src="ASSETS.ui.farm" alt="" /> {{ t('chickens.display') }}
         </button>
         <div v-else class="muted small">✔ {{ t('chickens.displayed') }}</div>
       </template>
       <PrimaryButton v-else small variant="gold" @click="ui.setTab('shop')">
-        🏪 {{ t('chickens.toShop') }}
+        <img class="mini-ico" :src="ASSETS.ui.shop" alt="" /> {{ t('chickens.toShop') }}
       </PrimaryButton>
     </div>
   </div>
 </template>
 
 <style scoped>
+.mini-ico { width: 20px; height: 20px; object-fit: contain; vertical-align: -4px; }
 .details { display: flex; gap: 10px; padding: 12px; }
 .pic { flex: 0 0 130px; display: flex; align-items: flex-end; justify-content: center; }
 .info { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }

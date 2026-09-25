@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Маленький баланс монет для экранов без шапки (Магазин, Курочки).
 import { useGameStore } from '@/stores/game'
 import { formatCompact } from '@/economy/format'
@@ -7,7 +8,7 @@ const game = useGameStore()
 </script>
 
 <template>
-  <span class="coins">🪙 {{ formatCompact(game.balance?.coins ?? 0) }}</span>
+  <span class="coins"><CoinIcon :size="18" /> {{ formatCompact(game.balance?.coins ?? 0) }}</span>
 </template>
 
 <style scoped>

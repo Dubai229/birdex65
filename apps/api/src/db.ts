@@ -22,6 +22,13 @@ export interface UserRow {
   chickens: number
   state: string | null
   referred_by: number | null
+  coins: number
+  best_play: number
+  sold_total: number
+  avatar: string | null
+  ref_pending: number
+  ref_given: number
+  ref_total: number
   created_at: number
   updated_at: number
 }
@@ -44,9 +51,40 @@ const SCHEMA = [
   'CREATE INDEX IF NOT EXISTS users_ref ON users (referred_by)',
 ]
 
+/**
+ * Новые колонки добавляются к уже существующей таблице (ALTER TABLE),
+ * поэтому старые игроки и их прогресс не теряются.
+ */
+const COLUMNS: [string, string][] = [
+  ['coins', 'INTEGER NOT NULL DEFAULT 0'], // монеты сейчас (для рейтинга)
+  ['best_play', 'INTEGER NOT NULL DEFAULT 0'], // рекорд яиц за одну игру в Play
+  ['sold_total', 'INTEGER NOT NULL DEFAULT 0'], // всего монет с продажи яиц (для рефералки)
+  ['avatar', 'TEXT'], // ключ курицы-аватарки
+  ['ref_pending', 'INTEGER NOT NULL DEFAULT 0'], // реф. монеты, ждут "Забрать"
+  ['ref_given', 'INTEGER NOT NULL DEFAULT 0'], // сколько этот игрок принёс пригласившему
+  ['ref_total', 'INTEGER NOT NULL DEFAULT 0'], // сколько я всего получил с друзей
+]
+
 let ready = false
 export async function ensureSchema(db: D1Database): Promise<void> {
   if (ready) return
-  await db.batch(SCHEMA.map((s) => db.prepare(s)))
+  await db.prepare(SCHEMA[0]).run()
+  const info = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
+  const have = new Set(info.results.map((c) => c.name))
+  const add = COLUMNS.filter(([name]) => !have.has(name))
+  for (const [name, type] of add) {
+    try {
+      await db.prepare(`ALTER TABLE users ADD COLUMN ${name} ${type}`).run()
+    } catch {
+      /* колонку уже добавил параллельный запрос */
+    }
+  }
+  await db.batch(
+    [
+      ...SCHEMA.slice(1),
+      'CREATE INDEX IF NOT EXISTS users_coins ON users (coins DESC)',
+      'CREATE INDEX IF NOT EXISTS users_play ON users (best_play DESC)',
+    ].map((q) => db.prepare(q)),
+  )
   ready = true
 }

@@ -1,15 +1,23 @@
 // Контракт API. Клиент шлёт НАМЕРЕНИЕ, сервер считает результат.
 // Mock и реальный HTTP-клиент реализуют один и тот же интерфейс.
 
-import type { GameState, LeaderboardEntry, Friend } from '@/types/game'
+import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
 export interface CollectResult { collected: number; state: GameState }
 export interface SellResult { eggsSold: number; coinsReceived: number; state: GameState }
 export interface RewardResult { coins: number; day: number; state: GameState }
 export interface LeaderboardResult {
   top: LeaderboardEntry[]
-  me: { rank: number; farmValue: number } | null
+  me: { rank: number; value: number } | null
   /** false — игра открыта не в Telegram, рейтинга нет. */
+  online: boolean
+}
+export interface FriendsResult {
+  friends: Friend[]
+  /** 12% с продаж друзей, которые можно забрать. */
+  pending: number
+  /** Всего получено с друзей. */
+  total: number
   online: boolean
 }
 export interface PromoResult { coins: number; energy: number; state: GameState }
@@ -44,8 +52,10 @@ export interface GameApi {
   claimReward(): Promise<RewardResult>
   startPlay(): Promise<PlaySessionTicket>
   finishPlay(summary: PlaySessionSummary): Promise<PlayResult>
-  leaderboard(): Promise<LeaderboardResult>
-  friends(): Promise<{ friends: Friend[]; online: boolean }>
+  leaderboard(kind: RatingKind): Promise<LeaderboardResult>
+  friends(): Promise<FriendsResult>
+  claimReferral(): Promise<{ coins: number; state: GameState }>
+  setAvatar(chickenKey: string): Promise<GameState>
   renameFarm(name: string): Promise<GameState>
 }
 

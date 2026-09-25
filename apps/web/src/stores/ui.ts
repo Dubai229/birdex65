@@ -10,6 +10,8 @@ export const useUiStore = defineStore('ui', () => {
   const toasts = ref<Toast[]>([])
   /** Курица, открытая в деталях на вкладке "Курицы". */
   const selectedChickenKey = ref<string | null>(null)
+  /** Идёт попытка в Play — нижнее меню спрятано. */
+  const playing = ref(false)
   let nextId = 1
 
   function setTab(id: TabId) {
@@ -33,5 +35,5 @@ export const useUiStore = defineStore('ui', () => {
     }, 2400)
   }
 
-  return { tab, sheet, toasts, selectedChickenKey, setTab, openSheet, closeSheet, toast }
+  return { tab, playing, sheet, toasts, selectedChickenKey, setTab, openSheet, closeSheet, toast }
 })

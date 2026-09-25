@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Карточка курицы в магазине.
 // Цена "дышит" при наведении. Не хватает монет — звук error, кнопка трясётся.
 import { computed, ref } from 'vue'
@@ -52,7 +53,7 @@ function onBuy() {
         :loading="game.pending === `buy:${def.key}`"
         @click="onBuy"
       >
-        <span class="price"><span class="coin">🪙</span> {{ formatNumber(def.price) }}</span>
+        <span class="price"><span class="coin"><CoinIcon :size="18" /></span> {{ formatNumber(def.price) }}</span>
       </PrimaryButton>
     </div>
   </div>

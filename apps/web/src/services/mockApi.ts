@@ -17,7 +17,7 @@ import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
 import { loadSave, writeSave } from './storage'
 import { createNewState, syncEnergy, syncDerived, addXp, clone, SAVE_VERSION } from './mockState'
-import { cloudEnabled, cloudLogin, cloudSave, cloudLeaderboard, cloudFriends } from './cloud'
+import { cloudEnabled, cloudLogin, cloudSave, cloudLeaderboard, cloudFriends, cloudClaimReferral } from './cloud'
 import { setSaveOwner } from './storage'
 import { getTelegramUser } from './telegram'
 
@@ -55,7 +55,10 @@ function boot(): Promise<void> {
     if (cloudEnabled()) {
       try {
         const res = await cloudLogin()
-        if (isValidState(res.state)) state = res.state
+        if (isValidState(res.state)) {
+          state = res.state
+          syncDerived(state)
+        }
       } catch {
         /* сервер недоступен — играем локально, сохраним позже */
       }
@@ -118,6 +121,7 @@ export const mockApi: GameApi = {
     const coins = sellValue(eggs)
     s.balance.eggs -= eggs
     s.balance.coins += coins
+    s.stats.soldCoins += coins // с этого пригласившему идёт 12%
     return { eggsSold: eggs, coinsReceived: coins, state: commit() }
   },
 
@@ -253,20 +257,38 @@ export const mockApi: GameApi = {
       (summary.normalCaught * ECONOMY.play.normalReward + summary.goldenCaught * ECONOMY.play.goldenReward) *
       playEggValue(s.profile.level)
     const free = Math.max(0, s.balance.storageCapacity - s.balance.eggs)
-    const eggsAwarded = Math.max(0, Math.min(Math.floor(raw * ratio), free))
+    const earned = Math.floor(raw * ratio)
+    const eggsAwarded = Math.max(0, Math.min(earned, free))
     s.balance.eggs += eggsAwarded
+    // Рекорд для рейтинга — сколько набил за игру (даже если склад не вместил).
+    s.stats.bestPlay = Math.max(s.stats.bestPlay, earned)
     return { eggsAwarded, state: commit() }
   },
 
-  async leaderboard() {
+  async leaderboard(kind) {
     if (!cloudEnabled()) return { top: [], me: null, online: false }
-    const res = await cloudLeaderboard()
+    const res = await cloudLeaderboard(kind)
     return { ...res, online: true }
   },
 
   async friends() {
-    if (!cloudEnabled()) return { friends: [], online: false }
-    return { friends: await cloudFriends(), online: true }
+    if (!cloudEnabled()) return { friends: [], pending: 0, total: 0, online: false }
+    return { ...(await cloudFriends()), online: true }
+  },
+
+  async claimReferral() {
+    if (!cloudEnabled()) throw new ApiError('OFFLINE')
+    const coins = await cloudClaimReferral()
+    const s = db()
+    s.balance.coins += coins // не считается продажей — 12% с 12% не бывает
+    return { coins, state: commit() }
+  },
+
+  async setAvatar(key) {
+    await wait()
+    getChickenDef(key) // проверка, что такая курица есть
+    db().profile.avatar = key
+    return commit()
   },
 
   async renameFarm(name) {

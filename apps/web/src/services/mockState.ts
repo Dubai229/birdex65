@@ -37,6 +37,7 @@ export function createNewState(now: number): GameState {
     lastProductionAt: now,
     energyUpdatedAt: now,
     reward: { streakDay: 0, lastClaimAt: null },
+    stats: { soldCoins: 0, bestPlay: 0 },
     version: SAVE_VERSION,
   }
   syncDerived(state)
@@ -47,6 +48,8 @@ export function createNewState(now: number): GameState {
 export function syncDerived(state: GameState): void {
   state.storageLevel ??= 0 // старые сохранения без склада
   state.redeemedCodes ??= []
+  // Старые сохранения без статистики — дополняем, прогресс не сбрасывается.
+  state.stats ??= { soldCoins: 0, bestPlay: 0 }
   state.profile.level = levelForXp(state.profile.xp)
   state.balance.storageCapacity = storageCapacity(state.storageLevel)
   state.balance.energyMax = energyMaxForLevel(state.energyLevel)

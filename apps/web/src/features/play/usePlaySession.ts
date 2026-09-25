@@ -2,7 +2,7 @@
 // Ледяное яйцо замедляет всё в 3 раза на 10 сек.
 // Энергия списывается сервером на старте. В конце сервер проверяет итог.
 
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { ECONOMY } from '@/config/economy'
 import { comboMultiplier } from '@/economy/combo'
 import { spawnIntervalMs, fallDurationMs } from '@/economy/playDifficulty'
@@ -51,6 +51,8 @@ export function usePlaySession() {
   const timeScale = ref(1)
   /** Сколько секунд заморозки осталось (для таймера на экране). */
   const frozenLeft = ref(0)
+  // Пока идёт попытка — нижнее меню спрятано.
+  watch(phase, (p) => (ui.playing = p === 'running'))
 
   let ticket: Omit<PlaySessionTicket, 'state'> | null = null
   let spawnTimer: number | undefined
@@ -219,6 +221,7 @@ export function usePlaySession() {
   onUnmounted(() => {
     if (phase.value === 'running') finish()
     stopTimers()
+    ui.playing = false
   })
 
   return {
