@@ -1,9 +1,15 @@
 // Выкладка на Cloudflare: игра (статика из apps/web/dist) + API (apps/api) + база D1.
 // Секрет BOT_TOKEN задаётся в панели Cloudflare: Settings → Variables and Secrets → Secret.
+// Обычные переменные (не секреты) пишем ЗДЕСЬ: при каждом деплое из GitHub Cloudflare
+// берёт их из этого файла, а добавленные вручную в панели — стирает.
 {
   "name": "birdex65",
   "main": "apps/api/src/index.ts",
   "compatibility_date": "2026-09-01",
+  "vars": {
+    // Канал для бонуса за подписку (бот @Birdextest_bot должен быть админом канала).
+    "CHANNEL_ID": "-1002768037224"
+  },
   "assets": {
     "directory": "./apps/web/dist",
     "binding": "ASSETS",
