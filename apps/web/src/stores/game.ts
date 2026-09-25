@@ -183,6 +183,24 @@ export const useGameStore = defineStore('game', () => {
     if (res) state.value = res
   }
 
+  async function setAvatar(key: string) {
+    const res = await run('avatar', () => api.setAvatar(key))
+    if (res) state.value = res
+    return !!res
+  }
+
+  /** Забрать 12% с продаж друзей. Возвращает сколько монет пришло. */
+  async function claimReferral() {
+    const res = await run('ref', () => api.claimReferral())
+    if (!res) return 0
+    state.value = res.state
+    if (res.coins > 0) {
+      playSound('collect')
+      haptics.success()
+    }
+    return res.coins
+  }
+
   function applyState(s: GameState) {
     state.value = s
   }
@@ -191,6 +209,6 @@ export const useGameStore = defineStore('game', () => {
     state, loading, pending, now,
     profile, balance, chickens, perHour, displayedChicken, readyToCollect, energy,
     ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy, upgradeStorage, redeemCode,
-    displayChicken, claimReward, renameFarm, applyState, stopClock,
+    displayChicken, claimReward, renameFarm, setAvatar, claimReferral, applyState, stopClock,
   }
 })

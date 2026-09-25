@@ -43,6 +43,12 @@ function turn(d: 1 | -1) {
 const selected = computed(() => ui.selectedChickenKey ?? game.displayedChicken?.key ?? CHICKENS[0].key)
 const levelOf = (key: string) => game.chickens.find((c) => c.key === key)?.level ?? null
 const label = (f: Filter) => (f === 'all' || f === 'owned' ? t(`chickens.${f}`) : t(`rarity.${f}`))
+
+/** Выбор курицы в списке — со звуком. */
+function pickCard(key: string) {
+  if (ui.selectedChickenKey !== key) playSound('pickChicken', 0.8)
+  ui.selectedChickenKey = key
+}
 </script>
 
 <template>
@@ -72,7 +78,7 @@ const label = (f: Filter) => (f === 'all' || f === 'owned' ? t(`chickens.${f}`) 
             :chicken-key="c.key"
             :level="levelOf(c.key)"
             :selected="c.key === selected"
-            @select="ui.selectedChickenKey = c.key"
+            @select="pickCard(c.key)"
           />
         </div>
       </Transition>

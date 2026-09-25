@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Верх экрана: название фермы, уровень, монеты, яйца + кнопки Награда/Рейтинг/Друзья/Настройки.
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -11,6 +12,7 @@ import { ASSETS } from '@/config/assets'
 import { playSound } from '@/services/audio'
 import type { SheetId } from '@/types/game'
 import ProgressBar from './ProgressBar.vue'
+import PlayerAvatar from './PlayerAvatar.vue'
 import { t } from '@/i18n'
 
 const game = useGameStore()
@@ -27,8 +29,8 @@ function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') 
 <template>
   <header v-if="game.state" class="header">
     <div class="top row">
-      <button class="profile row" @click="open('settings', 'settings')">
-        <div class="ava">🧑‍🌾</div>
+      <button class="profile row" @click="open('avatar', 'openPanel')">
+        <PlayerAvatar :chicken-key="game.profile?.avatar" :size="46" />
         <div class="info">
           <div class="farm-name">{{ game.profile?.farmName }}</div>
           <div class="lvl">{{ t('header.level', { n: game.profile?.level ?? 1 }) }}</div>
@@ -36,7 +38,9 @@ function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') 
         </div>
       </button>
       <div class="pills">
-        <ResourcePill icon="🪙" :value="game.balance?.coins ?? 0" plus @plus="ui.setTab('market')" />
+        <ResourcePill :value="game.balance?.coins ?? 0" plus @plus="ui.setTab('market')">
+          <template #icon><CoinIcon :size="22" /></template>
+        </ResourcePill>
         <ResourcePill :value="game.balance?.eggs ?? 0" :max="game.balance?.storageCapacity">
           <template #icon><EggIcon :size="22" /></template>
         </ResourcePill>

@@ -4,7 +4,7 @@ export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
 
 export type TabId = 'farm' | 'play' | 'chickens' | 'market' | 'shop' | 'events'
 
-export type SheetId = 'reward' | 'rating' | 'friends' | 'settings' | 'chickenPicker' | null
+export type SheetId = 'reward' | 'rating' | 'friends' | 'settings' | 'chickenPicker' | 'avatar' | null
 
 /** Статическое описание породы курицы (конфиг, не данные игрока). */
 export interface ChickenDefinition {
@@ -46,6 +46,16 @@ export interface PlayerProfile {
   farmName: string
   level: number
   xp: number
+  /** Ключ курицы-аватарки (любая из 36). Нет — фермер. */
+  avatar?: string
+}
+
+/** Статистика для рейтинга и рефералки. */
+export interface PlayerStats {
+  /** Всего монет получено с продажи яиц (с этого друг даёт 12% пригласившему). */
+  soldCoins: number
+  /** Рекорд яиц за одну игру в Play. */
+  bestPlay: number
 }
 
 export interface RewardState {
@@ -69,22 +79,31 @@ export interface GameState {
   lastProductionAt: number
   energyUpdatedAt: number
   reward: RewardState
+  stats: PlayerStats
   version: number
 }
+
+export type RatingKind = 'coins' | 'play'
 
 export interface LeaderboardEntry {
   rank: number
   name: string
   farmName?: string | null
   level?: number
-  /** Сколько монет вложено в куриц (= XP). */
-  farmValue: number
+  avatar?: string | null
+  /** Монеты (вкладка "Монеты") или рекорд яиц за игру (вкладка "Play"). */
+  value: number
   isMe?: boolean
 }
 
 export interface Friend {
   id: string
   name: string
+  farmName?: string | null
   level?: number
+  coins?: number
+  avatar?: string | null
+  /** Сколько монет (12%) этот друг уже принёс мне. */
+  earned?: number
   active: boolean
 }

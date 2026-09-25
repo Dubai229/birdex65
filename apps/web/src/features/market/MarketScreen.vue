@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
+import CoinText from '@/components/CoinText.vue'
 // Вкладка 4 — Продать: яйца → монеты.
 import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -41,14 +43,14 @@ async function sell() {
 
 <template>
   <div class="screen">
-    <h1 class="screen-title">💰 {{ t('market.title') }}</h1>
+    <h1 class="screen-title"><CoinIcon :size="28" /> {{ t('market.title') }}</h1>
 
     <div class="card panel">
       <div class="row">
         <div class="basket">🧺</div>
         <div>
           <div class="muted">{{ t('market.youHave', { n: formatNumber(total) }) }}</div>
-          <div class="muted small">{{ t('market.price', { n: ECONOMY.eggSellPrice }) }}</div>
+          <div class="muted small"><CoinText :text="t('market.price', { n: ECONOMY.eggSellPrice })" :size="14" /></div>
         </div>
       </div>
 
@@ -67,7 +69,7 @@ async function sell() {
       </div>
 
       <div class="preview">
-        <EggIcon :size="24" /> {{ formatNumber(amount) }} <span class="arrow">→</span> 🪙 {{ formatNumber(coins) }}
+        <EggIcon :size="24" /> {{ formatNumber(amount) }} <span class="arrow">→</span> <CoinIcon :size="24" /> {{ formatNumber(coins) }}
       </div>
 
       <PrimaryButton :disabled="amount <= 0" :loading="game.pending === 'sell'" @click="sell">

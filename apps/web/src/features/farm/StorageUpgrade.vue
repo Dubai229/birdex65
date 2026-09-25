@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CoinIcon from '@/components/CoinIcon.vue'
 // Прокачка склада на ферме: вместимость сейчас → после, цена. Нет монет — error + тряска.
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -44,7 +45,7 @@ function upgrade() {
   >
     <span class="arrow">⬆</span>
     <span>{{ formatCompact(game.balance?.storageCapacity ?? 0) }} → {{ formatCompact(next) }}</span>
-    <span class="price">🪙 {{ formatCompact(cost) }}</span>
+    <span class="price"><CoinIcon :size="16" /> {{ formatCompact(cost) }}</span>
   </button>
 </template>
 

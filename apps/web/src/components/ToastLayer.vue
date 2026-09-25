@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { useUiStore } from '@/stores/ui'
+import CoinText from './CoinText.vue'
 const ui = useUiStore()
 </script>
 
 <template>
   <div class="toasts">
     <TransitionGroup name="toast">
-      <div v-for="item in ui.toasts" :key="item.id" class="toast" :class="item.kind">{{ item.text }}</div>
+      <div v-for="item in ui.toasts" :key="item.id" class="toast" :class="item.kind"><CoinText :text="item.text" /></div>
     </TransitionGroup>
   </div>
 </template>

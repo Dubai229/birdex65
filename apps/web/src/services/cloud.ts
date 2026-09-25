@@ -3,7 +3,7 @@
 // В обычном браузере cloud выключен — игра сохраняется локально, рейтинг/друзья пустые.
 
 import { getInitData } from './telegram'
-import type { GameState, LeaderboardEntry, Friend } from '@/types/game'
+import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
 const SAVE_DEBOUNCE_MS = 1500
 
@@ -64,10 +64,18 @@ if (typeof document !== 'undefined') {
   })
 }
 
-export async function cloudLeaderboard(): Promise<{ top: LeaderboardEntry[]; me: { rank: number; farmValue: number } | null }> {
-  return api('/api/leaderboard')
+export async function cloudLeaderboard(
+  kind: RatingKind,
+): Promise<{ top: LeaderboardEntry[]; me: { rank: number; value: number } | null }> {
+  return api(`/api/leaderboard?by=${kind}`)
 }
 
-export async function cloudFriends(): Promise<Friend[]> {
-  return (await api<{ friends: Friend[] }>('/api/friends')).friends
+export async function cloudFriends(): Promise<{ friends: Friend[]; pending: number; total: number }> {
+  return api('/api/friends')
+}
+
+/** Забрать 12% с продаж друзей. Перед этим отправляем свежее сохранение. */
+export async function cloudClaimReferral(): Promise<number> {
+  flushSave()
+  return (await api<{ coins: number }>('/api/ref/claim', { method: 'POST', body: '{}' })).coins
 }

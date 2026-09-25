@@ -46,6 +46,27 @@ function onStart() {
   s.start()
 }
 
+/**
+ * Тап по полю: ловим ближайшее к пальцу яйцо в радиусе ~60px.
+ * Так яйцо ловится всегда, даже если палец чуть мимо или яйцо быстро летит.
+ */
+const HIT_RADIUS = 60
+function onFieldTap(ev: PointerEvent) {
+  if (!running.value || !field.value) return
+  ev.preventDefault()
+  let best: HTMLElement | null = null
+  let bestD = Infinity
+  for (const body of field.value.querySelectorAll<HTMLElement>('.egg:not(.caught) .body')) {
+    const r = body.getBoundingClientRect()
+    const d = Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2))
+    if (d <= Math.max(HIT_RADIUS, r.width * 0.9) && d < bestD) {
+      bestD = d
+      best = body.parentElement
+    }
+  }
+  if (best) onTap(Number(best.dataset.id), best.classList.contains('golden'), ev)
+}
+
 function onTap(id: number, golden: boolean, ev: PointerEvent) {
   const reward = s.catchEgg(id)
   if (!reward || !field.value) return
@@ -55,6 +76,21 @@ function onTap(id: number, golden: boolean, ev: PointerEvent) {
     id: fid++, text: ice ? '❄ ×' + ECONOMY.play.iceSlowFactor : `+${formatCompact(reward)}`, gold: golden, egg: !ice,
     x: ev.clientX - rect.left, y: ev.clientY - rect.top,
   })
+}
+
+// Яйцо падает ровно до нижнего края поля — промах засчитывается (и звучит) в момент,
+// когда яйцо ушло за край. Скорость та же, что задаёт сложность (раньше путь был 115vh).
+const fallCache = new Map<number, { fall: number; dur: number }>()
+function eggFall(id: number, duration: number) {
+  let v = fallCache.get(id)
+  if (!v) {
+    const h = field.value?.clientHeight ?? window.innerHeight
+    const fall = h + 70
+    v = { fall, dur: Math.round((duration * fall) / (window.innerHeight * 1.15)) }
+    fallCache.set(id, v)
+    if (fallCache.size > 200) fallCache.delete(fallCache.keys().next().value as number)
+  }
+  return v
 }
 
 // Заморозка: меняем скорость уже летящих CSS-анимаций (падение + вращение) через playbackRate.
@@ -77,7 +113,7 @@ watch(s.lives, (now, before) => {
 
 <template>
   <GameBackground :src="bgSrc" :dim="0.3" />
-  <div class="screen play">
+  <div class="screen play" :class="{ running }">
     <div class="card stats row">
       <span class="eggs"><EggIcon :size="22" /> {{ running ? formatNumber(s.score.value) : formatNumber(game.balance?.eggs ?? 0) }}</span>
       <div class="spacer" />
@@ -87,21 +123,22 @@ watch(s.lives, (now, before) => {
       <span v-else class="muted">⚡ {{ formatNumber(game.energy) }}</span>
     </div>
 
-    <div ref="field" class="field" :class="{ shake: shaking }" @animationend.self="shaking = false">
+    <div ref="field" class="field" :class="{ shake: shaking }" @pointerdown="onFieldTap" @animationend.self="shaking = false">
       <Transition name="snow"><SnowFall v-if="running && s.frozenLeft.value > 0" /></Transition>
       <div
         v-for="egg in s.eggs.value"
         :key="egg.id"
         :ref="eggRef"
         class="egg"
+        :data-id="egg.id"
         :class="[egg.kind, { caught: egg.caught }]"
         :style="{
           left: egg.x + '%',
           '--drift': egg.drift + 'px',
           '--spin': egg.spin + 'deg',
-          animationDuration: egg.duration + 'ms',
+          '--fall': eggFall(egg.id, egg.duration).fall + 'px',
+          animationDuration: eggFall(egg.id, egg.duration).dur + 'ms',
         }"
-        @pointerdown.prevent="onTap(egg.id, egg.kind === 'golden', $event)"
         @animationend.self="s.eggLanded(egg.id)"
       >
         <span class="trail" />
@@ -150,6 +187,8 @@ watch(s.lives, (now, before) => {
 
 <style scoped>
 .play { position: relative; z-index: 1; flex: 1; min-height: 480px; }
+/* Во время игры нижнее меню спрятано — поле тянется до низа экрана. */
+.play.running { padding-bottom: calc(var(--safe-bottom) + 10px); }
 .stats { padding: 10px 12px; font-weight: 900; gap: 12px; }
 .eggs { display: inline-flex; align-items: center; gap: 4px; }
 .lives { display: inline-flex; gap: 2px; font-size: 20px; }
@@ -163,7 +202,7 @@ watch(s.lives, (now, before) => {
 }
 .field { position: relative; flex: 1; min-height: 360px; overflow: hidden; touch-action: none; border-radius: var(--radius-lg); }
 .egg {
-  position: absolute; top: -70px; line-height: 0; transform: translateX(-50%); cursor: pointer; padding: 8px;
+  position: absolute; top: -70px; line-height: 0; transform: translateX(-50%); padding: 8px; pointer-events: none;
   animation-name: fall; animation-timing-function: linear; animation-fill-mode: forwards;
 }
 /* Корпус яйца вращается отдельно, чтобы шлейф над ним не крутился. */
@@ -183,7 +222,7 @@ watch(s.lives, (now, before) => {
 .egg.caught .body, .egg.caught .trail { animation-play-state: paused; }
 @keyframes fall {
   from { transform: translate(-50%, 0); }
-  to { transform: translate(calc(-50% + var(--drift)), 115vh); }
+  to { transform: translate(calc(-50% + var(--drift)), var(--fall, 115vh)); }
 }
 @keyframes spin { to { transform: rotate(var(--spin)); } }
 
