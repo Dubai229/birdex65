@@ -7,7 +7,6 @@ import { useSettingsStore } from '@/stores/settings'
 import { playSound } from '@/services/audio'
 import BottomSheet from '@/components/BottomSheet.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
-import PromoCode from './PromoCode.vue'
 import { t } from '@/i18n'
 
 const ui = useUiStore()
@@ -36,6 +35,18 @@ function previewSound() {
       <PrimaryButton small :loading="game.pending === 'rename'" @click="game.renameFarm(name)">
         {{ t('settings.save') }}
       </PrimaryButton>
+    </div>
+
+    <div class="card opt">
+      <div class="muted small">{{ t('settings.language') }}</div>
+      <div class="lang-tabs" role="group" :aria-label="t('settings.language')">
+        <button :class="{ on: settings.language === 'en' }" @click="settings.language = 'en'">
+          {{ t('settings.english') }}
+        </button>
+        <button :class="{ on: settings.language === 'ru' }" @click="settings.language = 'ru'">
+          {{ t('settings.russian') }}
+        </button>
+      </div>
     </div>
 
     <div class="card opt">
@@ -91,7 +102,6 @@ function previewSound() {
       <input id="opt-haptics" v-model="settings.haptics" type="checkbox" />
     </label>
 
-    <PromoCode />
   </BottomSheet>
 </template>
 
@@ -103,6 +113,17 @@ function previewSound() {
 }
 .opt { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .opt-row { padding: 12px; }
+.lang-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;
+  border-radius: var(--radius-sm); background: rgba(0, 0, 0, 0.35);
+}
+.lang-tabs button {
+  min-height: 36px; border-radius: 6px; font-weight: 900; color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+.lang-tabs button.on {
+  background: linear-gradient(180deg, #ffd35c, var(--gold)); color: #4a2a05; box-shadow: 0 3px 0 var(--gold-dark);
+}
 input[type='checkbox'] { width: 22px; height: 22px; accent-color: var(--green-success); }
 .vol { gap: 10px; transition: opacity 0.2s; }
 .vol.off { opacity: 0.4; }

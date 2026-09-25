@@ -2,9 +2,9 @@
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
 
-export type TabId = 'farm' | 'play' | 'chickens' | 'market' | 'shop' | 'events'
+export type TabId = 'farm' | 'play' | 'chickens' | 'market' | 'earn' | 'shop' | 'season'
 
-export type SheetId = 'reward' | 'rating' | 'friends' | 'settings' | 'chickenPicker' | 'avatar' | null
+export type SheetId = 'reward' | 'rating' | 'friends' | 'settings' | 'chickenPicker' | null
 
 /** Статическое описание породы курицы (конфиг, не данные игрока). */
 export interface ChickenDefinition {
@@ -64,6 +64,19 @@ export interface RewardState {
   lastClaimAt: number | null
 }
 
+export interface EventState {
+  channelSubscribed: boolean
+  channelBonusClaimed: boolean
+}
+
+export interface SeasonState {
+  id: number
+  points: number
+  startedAt: number
+  endsAt: number
+  lastSnapshotAt: number | null
+}
+
 /** Полное состояние сохранения (mock-бэкенд хранит его целиком). */
 export interface GameState {
   profile: PlayerProfile
@@ -79,6 +92,8 @@ export interface GameState {
   lastProductionAt: number
   energyUpdatedAt: number
   reward: RewardState
+  events: EventState
+  season: SeasonState
   stats: PlayerStats
   version: number
 }

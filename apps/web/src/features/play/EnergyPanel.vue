@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import CoinIcon from '@/components/CoinIcon.vue'
-// Энергия для Play: сколько есть, когда хватит на попытку, прокачка максимума за монеты.
+// Энергия для Play: сколько есть, докупка попыток и прокачка максимума за монеты.
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { ECONOMY } from '@/config/economy'
-import { energyUpgradeCost, energyMaxForLevel, ENERGY_MAX_LEVEL, msUntilPlayable } from '@/economy/energy'
+import { energyBuyCost, energyUpgradeCost, energyMaxForLevel, ENERGY_MAX_LEVEL, msUntilPlayable } from '@/economy/energy'
 import { formatNumber, formatDuration } from '@/economy/format'
 import { playSound } from '@/services/audio'
 import ProgressBar from '@/components/ProgressBar.vue'
@@ -19,6 +19,8 @@ const maxed = computed(() => level.value >= ENERGY_MAX_LEVEL)
 const cost = computed(() => energyUpgradeCost(level.value))
 const nextMax = computed(() => energyMaxForLevel(level.value + 1))
 const affordable = computed(() => (game.balance?.coins ?? 0) >= cost.value)
+const buyCost = computed(() => energyBuyCost(game.profile?.level ?? 1))
+const canBuyEnergy = computed(() => (game.balance?.coins ?? 0) >= buyCost.value)
 const waitMs = computed(() => msUntilPlayable(game.energy, max.value))
 const tries = computed(() => Math.floor(game.energy / ECONOMY.energy.playCost))
 
@@ -28,6 +30,14 @@ function upgrade() {
     return
   }
   game.upgradeEnergy()
+}
+
+function buyEnergy() {
+  if (!canBuyEnergy.value) {
+    playSound('error', 0.7)
+    return
+  }
+  game.buyEnergy()
 }
 </script>
 
@@ -42,6 +52,14 @@ function upgrade() {
     </div>
     <ProgressBar :value="game.energy" :max="max" color="var(--gold)" />
     <div class="muted small">{{ t('play.energyInfo', { cost: ECONOMY.energy.playCost, hours: ECONOMY.energy.refillHours }) }}</div>
+    <PrimaryButton
+      small
+      :variant="canBuyEnergy ? 'gold' : 'wood'"
+      :loading="game.pending === 'buy-energy'"
+      @click="buyEnergy"
+    >
+      {{ t('play.buyEnergy') }} +{{ formatNumber(ECONOMY.energy.buyAmount) }} ⚡ · <CoinIcon :size="16" /> {{ formatNumber(buyCost) }}
+    </PrimaryButton>
     <PrimaryButton
       v-if="!maxed"
       small

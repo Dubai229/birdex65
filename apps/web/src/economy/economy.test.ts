@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chickenProduction, accumulatedEggs } from './production'
 import { storageCapacity, storageUpgradeCost, STORAGE_MAX_LEVEL } from './storage'
-import { xpForLevel, levelForXp, referencePerHour, playEggValue } from './progression'
+import { xpForLevel, levelForXp, referencePerHour } from './progression'
 import { currentEnergy, energyMaxForLevel, energyUpgradeCost, ENERGY_MAX_LEVEL, msUntilPlayable } from './energy'
 import { spawnIntervalMs, fallDurationMs } from './playDifficulty'
 import { CHICKENS } from '@/config/chickens'
@@ -65,12 +65,12 @@ describe('production', () => {
     // попытка стоит 50: из нуля на 300-максимуме ждать 50 / 300 × 8 ч = 80 мин
     expect(msUntilPlayable(0, 300)).toBe(80 * 60_000)
   })
-  it('energy upgrades 300 → 1000 by 50, first costs 500', () => {
+  it('energy upgrades 300 → 1000 by 50, first is expensive', () => {
     expect(energyMaxForLevel(0)).toBe(300)
     expect(energyMaxForLevel(ENERGY_MAX_LEVEL)).toBe(1000)
     expect(ENERGY_MAX_LEVEL).toBe(14)
-    expect(energyUpgradeCost(0)).toBe(500)
-    expect(energyUpgradeCost(1)).toBeGreaterThan(500)
+    expect(energyUpgradeCost(0)).toBe(25000)
+    expect(energyUpgradeCost(1)).toBeGreaterThan(25000)
   })
 })
 
@@ -123,7 +123,7 @@ describe('reward (days by New York time)', () => {
   })
 })
 
-describe('player level & play value', () => {
+describe('player level', () => {
   it('level grows with coins spent, capped at 50', () => {
     expect(levelForXp(0)).toBe(1)
     expect(levelForXp(xpForLevel(2))).toBe(2)
@@ -133,20 +133,14 @@ describe('player level & play value', () => {
     expect(referencePerHour(0)).toBe(30)
     expect(referencePerHour(1e7)).toBeGreaterThan(referencePerHour(1e5))
   })
-  it('play egg value: hand-set for levels 1–10, then grows with the farm', () => {
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(playEggValue)).toEqual([1, 2, 2, 2, 3, 3, 4, 5, 5, 7])
-    for (let l = 11; l <= 50; l++) expect(playEggValue(l)).toBeGreaterThan(playEggValue(l - 1))
-    const expected = Math.round((referencePerHour(xpForLevel(30)) * 0.85) / 30)
-    expect(playEggValue(30)).toBeGreaterThanOrEqual(expected)
-  })
 })
 
 describe('play difficulty', () => {
   it('gets faster with every egg, but has a floor', () => {
-    expect(spawnIntervalMs(0)).toBe(1250)
-    expect(spawnIntervalMs(60)).toBeLessThan(400)
-    expect(fallDurationMs(0)).toBe(2900)
-    expect(fallDurationMs(1000)).toBe(850)
+    expect(spawnIntervalMs(0)).toBeCloseTo(294.12)
+    expect(spawnIntervalMs(60)).toBeLessThan(200)
+    expect(fallDurationMs(0)).toBe(6200)
+    expect(fallDurationMs(1000)).toBe(1700)
   })
 })
 

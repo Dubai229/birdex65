@@ -40,26 +40,34 @@ export const ECONOMY = {
     upgradeStep: 50,
     /** Потолок энергии. */
     max: 1000,
-    /** Цена первого улучшения энергии. */
-    upgradeBaseCost: 500,
+    /** Цена первого улучшения энергии. Энергия должна быть дорогой / донатной зоной. */
+    upgradeBaseCost: 25000,
     /** Каждое следующее улучшение дороже в столько раз. */
-    upgradeGrowth: 1.45,
+    upgradeGrowth: 2.2,
     /** За сколько часов энергия восстанавливается с нуля до максимума. */
     refillHours: 8,
     /** Цена одной попытки Play. На 300 энергии — 6 попыток, на 1000 — 20. */
     playCost: 50,
+    /** Покупка энергии за монеты: дорого, чтобы ожидание и донатная зона не ломались. */
+    buyAmount: 150,
+    buyBaseCost: 750,
+    buyCostGrowth: 1.22,
   },
 
   play: {
+    /** Длительность одной попытки ловли яиц. */
+    durationSeconds: 30,
     /** Жизней в попытке. Пропустил яйцо — минус жизнь. */
     lives: 3,
-    goldenChance: 0.05,
+    goldenChance: 0.035,
+    /** Большая часть падающих объектов — мусор. Клик по мусору снимает жизнь. */
+    trashChance: 0.68,
     normalReward: 1,
     /** Золотое яйцо = 5 яиц. */
     goldenReward: 5,
     /** Ледяное яйцо: раз в iceEveryMs с шансом iceChance. Поймал — всё замедляется. */
     iceEveryMs: 5000,
-    iceChance: 0.15,
+    iceChance: 0.1,
     /** Во сколько раз всё медленнее во время заморозки. */
     iceSlowFactor: 3,
     iceSlowSeconds: 10,
@@ -69,14 +77,14 @@ export const ECONOMY = {
      * Сложность растёт с каждым пойманным яйцом (n):
      *   яиц в секунду = spawnStart + n × spawnPerEgg (до spawnMax)
      *   время падения = fallStartMs − n × fallPerEggMs (не меньше fallMinMs)
-     * Настроено так, что обычный игрок ловит ~60–70, профи ~100.
+     * Поле заполнено объектами: старт медленный, дальше темп постепенно ускоряется.
      */
-    spawnStart: 0.8,
-    spawnPerEgg: 0.043,
-    spawnMax: 5,
-    fallStartMs: 2900,
-    fallPerEggMs: 22,
-    fallMinMs: 850,
+    spawnStart: 3.4,
+    spawnPerEgg: 0.035,
+    spawnMax: 8,
+    fallStartMs: 6200,
+    fallPerEggMs: 34,
+    fallMinMs: 1700,
     /** Окно между ловлями, чтобы комбо не сбросилось, мс (пока только визуально). */
     comboWindowMs: 900,
     comboSteps: [1, 2, 3, 5] as readonly number[],
@@ -96,18 +104,6 @@ export const ECONOMY = {
     maxLevel: 50,
     /** Сколько нужно потратить для 2-го уровня. */
     level2Xp: 600,
-  },
-
-  /**
-   * Цена яйца в Play растёт с уровнем игрока, чтобы Play не терял смысл:
-   * 1 яйцо = (типичная ферма этого уровня, яиц/ч × lag) / baselinePerHour.
-   * lag 0.85 — Play чуть (на 15%) отстаёт от роста фермы.
-   */
-  playValue: {
-    lag: 0.85,
-    baselinePerHour: 30,
-    /** Первые 10 уровней заданы вручную (ур. 1, 2, 3 … 10), дальше — формула. */
-    earlyLevels: [1, 2, 2, 2, 3, 3, 4, 5, 5, 7] as readonly number[],
   },
 
   /** Ежедневная награда, монеты за 7 дней серии. */

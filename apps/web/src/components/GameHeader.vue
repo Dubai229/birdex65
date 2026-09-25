@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import CoinIcon from '@/components/CoinIcon.vue'
-// Верх экрана: название фермы, уровень, монеты, яйца + кнопки Награда/Рейтинг/Друзья/Настройки.
+// Верх экрана: профиль, игровая экономика и сезонные BIRD Points.
+import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { levelProgress } from '@/economy/progression'
+import { formatNumber } from '@/economy/format'
+import { seasonRank } from '@/economy/season'
+import { autoAvatarKey } from '@/economy/autoAvatar'
 import ResourcePill from './ResourcePill.vue'
 import EggIcon from './EggIcon.vue'
 import DailyRewardTile from './DailyRewardTile.vue'
@@ -17,6 +21,7 @@ import { t } from '@/i18n'
 
 const game = useGameStore()
 const ui = useUiStore()
+const rank = computed(() => seasonRank(game.season?.points ?? 0))
 
 /** Открыть окно шапки со звуком. */
 function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') {
@@ -29,14 +34,14 @@ function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') 
 <template>
   <header v-if="game.state" class="header">
     <div class="top row">
-      <button class="profile row" @click="open('avatar', 'openPanel')">
-        <PlayerAvatar :chicken-key="game.profile?.avatar" :size="46" />
+      <div class="profile row">
+        <PlayerAvatar :chicken-key="autoAvatarKey(game.profile?.level ?? 1)" :size="46" />
         <div class="info">
           <div class="farm-name">{{ game.profile?.farmName }}</div>
           <div class="lvl">{{ t('header.level', { n: game.profile?.level ?? 1 }) }}</div>
           <ProgressBar :value="levelProgress(game.profile?.xp ?? 0)" :max="1" />
         </div>
-      </button>
+      </div>
       <div class="pills">
         <ResourcePill :value="game.balance?.coins ?? 0" plus @plus="ui.setTab('market')">
           <template #icon><CoinIcon :size="22" /></template>
@@ -63,6 +68,12 @@ function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') 
         @click="open('friends', 'openPanel')"
       />
     </div>
+
+    <button class="season-card" @click="ui.setTab('season')">
+      <span class="season-name">🏆 {{ t('season.seasonN', { n: game.season?.id ?? 1 }) }}</span>
+      <span class="season-points">💎 {{ formatNumber(game.season?.points ?? 0) }}</span>
+      <span class="season-rank">#{{ formatNumber(rank) }}</span>
+    </button>
   </header>
 </template>
 
@@ -81,11 +92,20 @@ function open(sheet: SheetId, sound: 'openPanel' | 'openCalendar' | 'settings') 
 .info { min-width: 0; flex: 1; max-width: 150px; display: flex; flex-direction: column; gap: 2px; }
 .farm-name { font-weight: 900; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lvl { font-size: 11px; color: var(--text-secondary); }
-.pills { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.pills { display: flex; flex-direction: row; gap: 6px; align-items: center; justify-content: flex-end; min-width: 0; }
+.pills :deep(.pill) { min-width: 0; }
 .gear { font-size: 22px; padding: 4px; }
-/* Три одинаковые плашки в ряд (календарь, рейтинг, друзья), пропорции как у картинок. */
 .quick {
   --tile-ratio: 600 / 225;
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; align-items: start;
 }
+.season-card {
+  width: 100%; margin-top: 7px; padding: 9px 10px; border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.5); border: 2px solid var(--gold-dark);
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+  text-align: left; font-weight: 900;
+}
+.season-name { color: var(--text-primary); }
+.season-points { color: var(--gold); }
+.season-rank { color: var(--text-secondary); font-size: 13px; }
 </style>

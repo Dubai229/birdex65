@@ -14,13 +14,13 @@ import PlayScreen from '@/features/play/PlayScreen.vue'
 import ChickensScreen from '@/features/chickens/ChickensScreen.vue'
 import MarketScreen from '@/features/market/MarketScreen.vue'
 import ShopScreen from '@/features/shop/ShopScreen.vue'
-import EventsScreen from '@/features/events/EventsScreen.vue'
+import EarnScreen from '@/features/earn/EarnScreen.vue'
+import SeasonScreen from '@/features/season/SeasonScreen.vue'
 import ChickenPickerSheet from '@/features/farm/ChickenPickerSheet.vue'
 import RewardSheet from '@/features/rewards/RewardSheet.vue'
 import RatingSheet from '@/features/social/RatingSheet.vue'
 import FriendsSheet from '@/features/social/FriendsSheet.vue'
 import SettingsSheet from '@/features/settings/SettingsSheet.vue'
-import AvatarSheet from '@/features/settings/AvatarSheet.vue'
 import CometLayer from '@/components/effects/CometLayer.vue'
 import LevelUpBanner from '@/components/effects/LevelUpBanner.vue'
 import { t } from '@/i18n'
@@ -34,8 +34,9 @@ const SCREENS: Record<TabId, Component> = {
   play: PlayScreen,
   chickens: ChickensScreen,
   market: MarketScreen,
+  earn: EarnScreen,
   shop: ShopScreen,
-  events: EventsScreen,
+  season: SeasonScreen,
 }
 
 // Вернулся в приложение — берём свежее состояние с сервера.
@@ -72,7 +73,7 @@ onUnmounted(() => {
 
   <div v-else class="shell">
     <div class="scroller" :class="{ 'no-header': ui.tab !== 'farm' }">
-      <!-- Шапка (профиль, монеты, календарь, рейтинг, друзья) — только на Ферме. -->
+      <!-- Шапка (профиль, игровая экономика и сезон) — только на Ферме. -->
       <GameHeader v-if="ui.tab === 'farm'" />
       <main>
         <component :is="SCREENS[ui.tab]" />
@@ -87,7 +88,6 @@ onUnmounted(() => {
     <RatingSheet />
     <FriendsSheet />
     <SettingsSheet />
-    <AvatarSheet />
     <ToastLayer />
     <LevelUpBanner />
   </div>

@@ -9,9 +9,9 @@ import { upgradeCost, isMaxLevel } from '@/economy/upgrade'
 import { sellValue } from '@/economy/market'
 import { rewardStatus, effectiveStreakDay, rewardAmount } from '@/economy/reward'
 import { maxPlausibleEggs } from '@/economy/playDifficulty'
-import { energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
+import { energyBuyCost, energyUpgradeCost, ENERGY_MAX_LEVEL } from '@/economy/energy'
 import { storageUpgradeCost, STORAGE_MAX_LEVEL } from '@/economy/storage'
-import { playEggValue } from '@/economy/progression'
+import { birdPointsForCollect } from '@/economy/season'
 import { findPromo, normalizeCode } from '@/config/promo'
 import type { GameState } from '@/types/game'
 import { ApiError, type GameApi, type PlaySessionTicket } from './apiTypes'
@@ -92,6 +92,7 @@ export const mockApi: GameApi = {
   async me() {
     await boot()
     await wait()
+    syncDerived(db())
     syncEnergy(db(), Date.now())
     return commit()
   },
@@ -109,7 +110,9 @@ export const mockApi: GameApi = {
     })
     s.balance.eggs += collected
     s.lastProductionAt = now
-    return { collected, state: commit() }
+    const birdPointsAwarded = birdPointsForCollect(collected)
+    s.season.points += birdPointsAwarded
+    return { collected, birdPointsAwarded, state: commit() }
   },
 
   async sellEggs(amount) {
@@ -171,6 +174,18 @@ export const mockApi: GameApi = {
     // бонусная энергия сверх максимума не срезается
     s.balance.energy = Math.max(s.balance.energy, Math.min(s.balance.energyMax, s.balance.energy + ECONOMY.energy.upgradeStep))
     return commit()
+  },
+
+  async buyEnergy() {
+    await wait()
+    const s = db()
+    const cost = energyBuyCost(s.profile.level)
+    if (s.balance.coins < cost) throw new ApiError('NOT_ENOUGH_COINS')
+    syncEnergy(s, Date.now())
+    s.balance.coins -= cost
+    // Купленная энергия может быть выше максимума, как бонусы из промокодов.
+    s.balance.energy += ECONOMY.energy.buyAmount
+    return { energy: ECONOMY.energy.buyAmount, coinsSpent: cost, state: commit() }
   },
 
   async upgradeStorage() {
@@ -252,10 +267,8 @@ export const mockApi: GameApi = {
     const caught = summary.normalCaught + summary.goldenCaught
     const plausible = maxPlausibleEggs(duration)
     const ratio = caught > 0 ? Math.min(1, plausible / caught) : 0
-    // Цена яйца в Play зависит от уровня игрока (см. economy/progression).
-    const raw =
-      (summary.normalCaught * ECONOMY.play.normalReward + summary.goldenCaught * ECONOMY.play.goldenReward) *
-      playEggValue(s.profile.level)
+    const maxEarned = summary.normalCaught * 2 + summary.goldenCaught * ECONOMY.play.goldenReward
+    const raw = Math.max(0, Math.min(Math.floor(summary.eggsEarned), maxEarned))
     const free = Math.max(0, s.balance.storageCapacity - s.balance.eggs)
     const earned = Math.floor(raw * ratio)
     const eggsAwarded = Math.max(0, Math.min(earned, free))
@@ -284,11 +297,23 @@ export const mockApi: GameApi = {
     return { coins, state: commit() }
   },
 
-  async setAvatar(key) {
+  async verifyChannelSubscription() {
     await wait()
-    getChickenDef(key) // проверка, что такая курица есть
-    db().profile.avatar = key
-    return commit()
+    const s = db()
+    // Mock API: настоящую проверку Telegram-подписки позже должен заменить бэкенд.
+    s.events.channelSubscribed = true
+    return { subscribed: true, state: commit() }
+  },
+
+  async claimChannelBonus() {
+    await wait()
+    const s = db()
+    if (!s.events.channelSubscribed) throw new ApiError('CHANNEL_NOT_SUBSCRIBED')
+    if (s.events.channelBonusClaimed) throw new ApiError('CHANNEL_BONUS_CLAIMED')
+    const coins = 1000
+    s.events.channelBonusClaimed = true
+    s.balance.coins += coins
+    return { coins, state: commit() }
   },
 
   async renameFarm(name) {

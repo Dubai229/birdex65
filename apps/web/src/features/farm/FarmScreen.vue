@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CoinIcon from '@/components/CoinIcon.vue'
-// Вкладка 1 — Ферма: фон (листается стрелками), курица, сбор производства, быстрые действия.
+// Вкладка 1 — Ферма: фон, курица, сбор производства, быстрые действия.
 import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'

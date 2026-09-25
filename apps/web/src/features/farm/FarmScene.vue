@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Сцена фермы: курица по центру, стрелки смены фона по бокам, точки-индикатор.
+// Сцена фермы: крупная курица-герой, стрелки смены фона по бокам.
 // Сам фон рисует GameBackground в FarmScreen (на весь экран).
 import { ref, watch } from 'vue'
 import ChickenAvatar from '@/components/ChickenAvatar.vue'
@@ -33,7 +33,7 @@ watch(
 const happy = ref(false)
 let happyTimer: number | undefined
 
-/** Тап по курице: сердечки из точки касания + прыжок + кудахтанье. */
+/** Тап по курице: перья и сердечки из точки касания + прыжок + кудахтанье. */
 function poke(ev: PointerEvent) {
   const rect = scene.value?.getBoundingClientRect()
   if (rect) hearts.value?.burst(ev.clientX - rect.left, ev.clientY - rect.top)
@@ -62,7 +62,7 @@ function poke(ev: PointerEvent) {
     <div ref="heroEl" class="hero-slot">
       <Transition name="swap" mode="out-in">
         <button v-if="chickenKey" :key="chickenKey" class="hero" :class="{ happy }" @pointerdown="poke">
-          <ChickenAvatar :chicken-key="chickenKey" :size="170" />
+          <ChickenAvatar :chicken-key="chickenKey" :size="230" />
         </button>
       </Transition>
     </div>
@@ -72,12 +72,16 @@ function poke(ev: PointerEvent) {
     <div v-if="bgTotal > 1" class="dots">
       <span v-for="i in bgTotal" :key="i" class="dot" :class="{ on: i - 1 === bgIndex }" />
     </div>
+
   </section>
 </template>
 
 <style scoped>
-.scene { position: relative; flex: 1; min-height: 200px; }
-.hero-slot { position: absolute; left: 50%; bottom: 22px; width: 170px; height: 170px; transform: translateX(-50%); z-index: 2; }
+.scene { position: relative; flex: 1; min-height: 270px; }
+.hero-slot {
+  position: absolute; left: 52%; bottom: -4px; width: 230px; height: 230px;
+  transform: translateX(-50%); z-index: 2;
+}
 .hero { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
 
 /* Смена курицы: старая крутится и тает, новая выпрыгивает с пружинкой. */
@@ -111,11 +115,12 @@ function poke(ev: PointerEvent) {
 .rate { left: 0; display: flex; align-items: center; gap: 4px; }
 .pick { right: 0; }
 .arrow {
-  position: absolute; top: 50%; transform: translateY(-50%);
+  position: absolute; top: 52%; transform: translateY(-50%);
   width: 40px; height: 56px; border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.45); border: 2px solid rgba(255, 255, 255, 0.15);
   font-size: 34px; font-weight: 900; line-height: 1;
   transition: transform 0.1s, background 0.15s;
+  z-index: 3;
 }
 .arrow:active { transform: translateY(-50%) scale(0.9); background: rgba(0, 0, 0, 0.65); }
 .arrow.left { left: -6px; }

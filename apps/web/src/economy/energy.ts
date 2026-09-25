@@ -19,6 +19,11 @@ export function energyUpgradeCost(level: number): number {
   return niceRound(E.upgradeBaseCost * E.upgradeGrowth ** level)
 }
 
+/** Цена покупки энергии растёт вместе с уровнем фермы. */
+export function energyBuyCost(farmLevel: number): number {
+  return niceRound(E.buyBaseCost * E.buyCostGrowth ** Math.max(0, farmLevel - 1))
+}
+
 /** Энергии в секунду: весь максимум за refillHours. */
 export function energyRegenPerSecond(energyMax: number): number {
   return energyMax / ((E.refillHours * HOUR_MS) / 1000)

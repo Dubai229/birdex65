@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Фон для вкладок Продать и Курочки: выбранный фон фермы, размытый и приглушённый.
+// Фон для вторичных вкладок: выбранный фон фермы, размытый и приглушённый.
 import { computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { FARM_BACKGROUNDS } from '@/config/assets'

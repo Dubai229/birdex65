@@ -3,7 +3,7 @@
 
 import type { GameState, LeaderboardEntry, Friend, RatingKind } from '@/types/game'
 
-export interface CollectResult { collected: number; state: GameState }
+export interface CollectResult { collected: number; birdPointsAwarded: number; state: GameState }
 export interface SellResult { eggsSold: number; coinsReceived: number; state: GameState }
 export interface RewardResult { coins: number; day: number; state: GameState }
 export interface LeaderboardResult {
@@ -34,6 +34,7 @@ export interface PlaySessionSummary {
   sessionId: string
   normalCaught: number
   goldenCaught: number
+  eggsEarned: number
   maxCombo: number
 }
 
@@ -46,6 +47,7 @@ export interface GameApi {
   buyChicken(key: string): Promise<GameState>
   upgradeChicken(chickenId: string): Promise<GameState>
   upgradeEnergy(): Promise<GameState>
+  buyEnergy(): Promise<{ energy: number; coinsSpent: number; state: GameState }>
   upgradeStorage(): Promise<GameState>
   redeemCode(code: string): Promise<PromoResult>
   displayChicken(chickenId: string): Promise<GameState>
@@ -55,7 +57,8 @@ export interface GameApi {
   leaderboard(kind: RatingKind): Promise<LeaderboardResult>
   friends(): Promise<FriendsResult>
   claimReferral(): Promise<{ coins: number; state: GameState }>
-  setAvatar(chickenKey: string): Promise<GameState>
+  verifyChannelSubscription(): Promise<{ subscribed: boolean; state: GameState }>
+  claimChannelBonus(): Promise<{ coins: number; state: GameState }>
   renameFarm(name: string): Promise<GameState>
 }
 

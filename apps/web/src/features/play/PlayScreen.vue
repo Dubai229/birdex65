@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Вкладка 2 — Play: бесконечная ловля яиц, 3 жизни, скорость растёт.
+// Вкладка 2 — Play: ловля яиц на 30 секунд, 3 жизни, скорость растёт.
 // Ледяное яйцо — заморозка: все яйца падают в 3 раза медленнее.
 import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -7,13 +7,11 @@ import { useSettingsStore } from '@/stores/settings'
 import { usePlaySession } from './usePlaySession'
 import { ECONOMY } from '@/config/economy'
 import { FARM_BACKGROUNDS } from '@/config/assets'
-import ChickenAvatar from '@/components/ChickenAvatar.vue'
 import EggIcon from '@/components/EggIcon.vue'
 import GameBackground from '@/components/GameBackground.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import FloatingReward from '@/components/FloatingReward.vue'
 import EnergyPanel from './EnergyPanel.vue'
-import SnowFall from '@/components/effects/SnowFall.vue'
 import { formatNumber, formatCompact } from '@/economy/format'
 import { useUiStore } from '@/stores/ui'
 import { playSound } from '@/services/audio'
@@ -64,16 +62,23 @@ function onFieldTap(ev: PointerEvent) {
       best = body.parentElement
     }
   }
-  if (best) onTap(Number(best.dataset.id), best.classList.contains('golden'), ev)
+  if (best) {
+    const kind = best.classList.contains('trash') ? 'trash' : best.classList.contains('golden') ? 'golden' : best.classList.contains('ice') ? 'ice' : 'normal'
+    onTap(Number(best.dataset.id), kind, ev)
+  }
 }
 
-function onTap(id: number, golden: boolean, ev: PointerEvent) {
+function onTap(id: number, kind: string, ev: PointerEvent) {
   const reward = s.catchEgg(id)
   if (!reward || !field.value) return
   const rect = field.value.getBoundingClientRect()
-  const ice = reward < 0
+  const ice = reward === -1
+  const trash = reward === -2
   floats.value.push({
-    id: fid++, text: ice ? '❄ ×' + ECONOMY.play.iceSlowFactor : `+${formatCompact(reward)}`, gold: golden, egg: !ice,
+    id: fid++,
+    text: trash ? '-1 ❤️' : ice ? '❄ ×' + ECONOMY.play.iceSlowFactor : `+${formatCompact(reward)}`,
+    gold: kind === 'golden',
+    egg: !ice,
     x: ev.clientX - rect.left, y: ev.clientY - rect.top,
   })
 }
@@ -117,6 +122,8 @@ watch(s.lives, (now, before) => {
     <div class="card stats row">
       <span class="eggs"><EggIcon :size="22" /> {{ running ? formatNumber(s.score.value) : formatNumber(game.balance?.eggs ?? 0) }}</span>
       <div class="spacer" />
+      <span v-if="running" class="play-timer">⏱ {{ s.remainingSeconds.value }}</span>
+      <div v-if="running" class="spacer" />
       <span v-if="running" class="lives" :class="{ hurt: s.hurt.value }" @animationend="s.hurt.value = false">
         <span v-for="i in ECONOMY.play.lives" :key="i" class="life" :class="{ lost: i > s.lives.value }">❤️</span>
       </span>
@@ -124,7 +131,6 @@ watch(s.lives, (now, before) => {
     </div>
 
     <div ref="field" class="field" :class="{ shake: shaking }" @pointerdown="onFieldTap" @animationend.self="shaking = false">
-      <Transition name="snow"><SnowFall v-if="running && s.frozenLeft.value > 0" /></Transition>
       <div
         v-for="egg in s.eggs.value"
         :key="egg.id"
@@ -142,17 +148,19 @@ watch(s.lives, (now, before) => {
         @animationend.self="s.eggLanded(egg.id)"
       >
         <span class="trail" />
-        <span class="body"><EggIcon :size="52" :golden="egg.kind === 'golden'" :ice="egg.kind === 'ice'" /></span>
+        <span class="body">
+          <span v-if="egg.kind === 'trash' && egg.trashIcon === 'rotten_egg'" class="trash-body rotten">
+            <EggIcon :size="50" />
+          </span>
+          <span v-else-if="egg.kind === 'trash'" class="trash-body">{{ egg.trashIcon }}</span>
+          <EggIcon v-else :size="52" :golden="egg.kind === 'golden'" :ice="egg.kind === 'ice'" />
+        </span>
       </div>
 
       <FloatingReward v-for="f in floats" :key="f.id" v-bind="f" @done="floats = floats.filter((x) => x.id !== f.id)" />
 
       <div v-if="running && s.frozenLeft.value > 0" class="freeze-badge">❄ {{ s.frozenLeft.value }}</div>
       <div v-if="running && s.combo.value > 1" class="combo">{{ t('play.combo', { n: s.combo.value }) }}</div>
-
-      <div class="chicken">
-        <ChickenAvatar :chicken-key="game.displayedChicken?.key ?? 'farm_hen'" :size="150" />
-      </div>
 
       <div v-if="!running" class="overlay">
         <template v-if="s.phase.value === 'result'">
@@ -191,6 +199,10 @@ watch(s.lives, (now, before) => {
 .play.running { padding-bottom: calc(var(--safe-bottom) + 10px); }
 .stats { padding: 10px 12px; font-weight: 900; gap: 12px; }
 .eggs { display: inline-flex; align-items: center; gap: 4px; }
+.play-timer {
+  min-width: 58px; text-align: center; padding: 3px 10px; border-radius: 999px;
+  color: var(--gold); background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 211, 92, 0.45);
+}
 .lives { display: inline-flex; gap: 2px; font-size: 20px; }
 .life { transition: transform 0.2s, filter 0.2s, opacity 0.2s; }
 .life.lost { filter: grayscale(1); opacity: 0.35; transform: scale(0.8); }
@@ -213,6 +225,24 @@ watch(s.lives, (now, before) => {
 }
 .egg.golden .body { filter: drop-shadow(0 0 10px var(--gold)); }
 .egg.ice .body { filter: drop-shadow(0 0 12px rgba(120, 210, 255, 0.95)); }
+.egg.trash .body { filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.55)); }
+.trash-body {
+  width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px;
+  font-size: 34px; line-height: 1; background: rgba(39, 27, 18, 0.5);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08), 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+.trash-body.rotten {
+  position: relative; border-radius: 50%; background: transparent; box-shadow: none;
+  filter: grayscale(0.85) sepia(0.55) hue-rotate(12deg) brightness(0.48) contrast(1.35) drop-shadow(0 4px 3px rgba(0, 0, 0, 0.55));
+}
+.trash-body.rotten::after {
+  content: ''; position: absolute; inset: 9px 8px 10px; border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(circle at 35% 38%, rgba(34, 24, 18, 0.9) 0 4px, transparent 5px),
+    radial-gradient(circle at 62% 58%, rgba(18, 18, 15, 0.75) 0 5px, transparent 6px),
+    radial-gradient(circle at 48% 72%, rgba(72, 83, 35, 0.65) 0 4px, transparent 5px);
+  mix-blend-mode: multiply;
+}
 .egg.ice::after {
   content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   box-shadow: 0 0 0 2px rgba(180, 235, 255, 0.7); animation: ice-ring 1s ease-out infinite;
@@ -253,10 +283,15 @@ watch(s.lives, (now, before) => {
     radial-gradient(circle, rgba(240, 252, 255, 0.9) 0 1.2px, transparent 1.8px) calc(100% - 5px) 6px / 9px 21px repeat-y;
   filter: blur(0.6px) drop-shadow(0 0 5px rgba(140, 215, 255, 0.8));
 }
+.egg.trash .trail {
+  width: 30px; height: 82px;
+  background:
+    radial-gradient(ellipse 45% 100% at 50% 100%, rgba(80, 65, 52, 0.45), rgba(80, 65, 52, 0) 100%),
+    linear-gradient(to top, rgba(80, 65, 52, 0.35), rgba(80, 65, 52, 0) 82%) 9px 35% / 2px 60% no-repeat;
+  filter: blur(1px);
+}
 @keyframes trail-flicker { from { opacity: 0.7; transform: translateX(-50%) scaleX(0.9); } to { opacity: 1; transform: translateX(-50%) scaleX(1.05); } }
 @media (prefers-reduced-motion: reduce) { .trail { display: none; } }
-.snow-enter-active, .snow-leave-active { transition: opacity 0.6s; }
-.snow-enter-from, .snow-leave-to { opacity: 0; }
 
 .freeze-badge {
   position: absolute; top: 12px; right: 12px; z-index: 4; padding: 4px 12px; border-radius: 99px;
@@ -279,7 +314,6 @@ watch(s.lives, (now, before) => {
   font-size: 28px; font-weight: 900; color: var(--gold); text-shadow: 0 3px 0 #6a3a16;
   animation: pop-in 0.2s ease;
 }
-.chicken { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); pointer-events: none; }
 .overlay {
   position: absolute; inset: 0; background: rgba(20, 10, 4, 0.6); overflow-y: auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center;

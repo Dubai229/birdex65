@@ -1,4 +1,4 @@
-// Логика Play: бесконечная попытка с 3 жизнями, сложность растёт с каждым яйцом.
+// Логика Play: попытка на 30 секунд с 3 жизнями, сложность растёт с каждым яйцом.
 // Ледяное яйцо замедляет всё в 3 раза на 10 сек.
 // Энергия списывается сервером на старте. В конце сервер проверяет итог.
 
@@ -6,7 +6,6 @@ import { ref, computed, onUnmounted, watch } from 'vue'
 import { ECONOMY } from '@/config/economy'
 import { comboMultiplier } from '@/economy/combo'
 import { spawnIntervalMs, fallDurationMs } from '@/economy/playDifficulty'
-import { playEggValue } from '@/economy/progression'
 import { api, ApiError } from '@/services/api'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -22,15 +21,17 @@ export interface FallingEgg {
   spin: number // градусы
   duration: number // мс падения (зависит от сложности на момент появления)
   kind: EggKind
+  trashIcon?: string
   caught: boolean
 }
 
-export type EggKind = 'normal' | 'golden' | 'ice'
+export type EggKind = 'normal' | 'golden' | 'ice' | 'trash'
 
 export type Phase = 'idle' | 'starting' | 'running' | 'finishing' | 'result'
 
 const P = ECONOMY.play
-const MAX_EGGS_ON_SCREEN = 18
+const MAX_EGGS_ON_SCREEN = 34
+const TRASH_ICONS = ['rotten_egg', '🥫', '🪵', '🧱', '🪨', '🍂'] as const
 
 export function usePlaySession() {
   const game = useGameStore()
@@ -42,6 +43,8 @@ export function usePlaySession() {
   const lives = ref(P.lives)
   const normalCaught = ref(0)
   const goldenCaught = ref(0)
+  const score = ref(0)
+  const remainingSeconds = ref(P.durationSeconds)
   const streak = ref(0)
   const maxCombo = ref(1)
   const lastResult = ref(0)
@@ -58,16 +61,13 @@ export function usePlaySession() {
   let spawnTimer: number | undefined
   let iceTimer: number | undefined
   let freezeTimer: number | undefined
+  let playTimer: number | undefined
   let lastCatchAt = 0
   let nextId = 1
 
   const caught = computed(() => normalCaught.value + goldenCaught.value)
   const combo = computed(() => comboMultiplier(streak.value))
-  /** Сколько яиц даёт одно пойманное яйцо (растёт с уровнем игрока). */
-  const eggValue = computed(() => playEggValue(game.profile?.level ?? 1))
-  const score = computed(
-    () => (normalCaught.value * P.normalReward + goldenCaught.value * P.goldenReward) * eggValue.value,
-  )
+  const eggValue = computed(() => P.normalReward)
 
   // Следующее яйцо планируется по текущей сложности — чем больше поймал, тем чаще.
   function scheduleSpawn() {
@@ -80,30 +80,31 @@ export function usePlaySession() {
 
   function spawn(kind?: EggKind) {
     if (eggs.value.filter((e) => !e.caught).length >= MAX_EGGS_ON_SCREEN) return
+    const nextKind = kind ?? randomKind()
     eggs.value.push({
       id: nextId++,
       x: 8 + Math.random() * 84,
-      drift: (Math.random() - 0.5) * 60,
-      spin: (Math.random() - 0.5) * 240,
+      drift: (Math.random() - 0.5) * 80,
+      spin: (Math.random() - 0.5) * 360,
       duration: fallDurationMs(caught.value),
-      kind: kind ?? (Math.random() < P.goldenChance ? 'golden' : 'normal'),
+      kind: nextKind,
+      trashIcon: nextKind === 'trash' ? TRASH_ICONS[Math.floor(Math.random() * TRASH_ICONS.length)] : undefined,
       caught: false,
     })
   }
 
-  /** Яйцо долетело до низа. Не поймано — минус жизнь. */
+  function randomKind(): EggKind {
+    const roll = Math.random()
+    if (roll < P.goldenChance) return 'golden'
+    if (roll < P.goldenChance + P.trashChance) return 'trash'
+    return 'normal'
+  }
+
+  /** Объект долетел до низа. Пропуск не штрафуется: опасен именно клик по мусору. */
   function eggLanded(id: number) {
     const egg = eggs.value.find((e) => e.id === id)
     eggs.value = eggs.value.filter((e) => e.id !== id)
     if (!egg || egg.caught || phase.value !== 'running') return
-    if (egg.kind === 'ice') return // бонус: пропуск не наказывается
-    streak.value = 0
-    lives.value--
-    playSound('miss', 0.8)
-    haptics.error()
-    hurt.value = false
-    requestAnimationFrame(() => (hurt.value = true))
-    if (lives.value <= 0) finish()
   }
 
   /** Возвращает награду за яйцо (для +N), или 0 если не засчитано. */
@@ -117,19 +118,33 @@ export function usePlaySession() {
     maxCombo.value = Math.max(maxCombo.value, combo.value)
     egg.caught = true
     setTimeout(() => (eggs.value = eggs.value.filter((e) => e.id !== id)), 250)
+    if (egg.kind === 'trash') {
+      streak.value = 0
+      lives.value--
+      playSound('miss', 0.8)
+      haptics.error()
+      hurt.value = false
+      requestAnimationFrame(() => (hurt.value = true))
+      if (lives.value <= 0) finish()
+      return -2
+    }
     if (egg.kind === 'ice') {
       freeze()
       return -1 // особый код: показать ❄ вместо +N
     }
     if (egg.kind === 'golden') {
       goldenCaught.value++
+      score.value += P.goldenReward
       playSound('eggGolden', 0.8)
       haptics.medium()
+      return P.goldenReward
     } else {
+      const reward = Math.random() < 0.5 ? 1 : 2
       normalCaught.value++
+      score.value += reward
       playSound('eggCatch', 0.6, 0.08)
+      return reward
     }
-    return (egg.kind === 'golden' ? P.goldenReward : P.normalReward) * eggValue.value
   }
 
   /** Заморозка: всё в 3 раза медленнее на 10 сек (повторная — продлевает). */
@@ -160,9 +175,20 @@ export function usePlaySession() {
     }, P.iceEveryMs / timeScale.value)
   }
 
+  function startPlayTimer() {
+    window.clearInterval(playTimer)
+    remainingSeconds.value = P.durationSeconds
+    playTimer = window.setInterval(() => {
+      if (phase.value !== 'running') return
+      remainingSeconds.value--
+      if (remainingSeconds.value <= 0) finish()
+    }, 1000)
+  }
+
   function stopTimers() {
     window.clearTimeout(spawnTimer)
     window.clearTimeout(iceTimer)
+    window.clearInterval(playTimer)
     unfreeze()
   }
 
@@ -181,6 +207,8 @@ export function usePlaySession() {
     }
     normalCaught.value = 0
     goldenCaught.value = 0
+    score.value = 0
+    remainingSeconds.value = P.durationSeconds
     streak.value = 0
     maxCombo.value = 1
     lives.value = P.lives
@@ -191,6 +219,7 @@ export function usePlaySession() {
     spawn()
     scheduleSpawn()
     scheduleIce()
+    startPlayTimer()
   }
 
   async function finish() {
@@ -203,6 +232,7 @@ export function usePlaySession() {
         sessionId: ticket.sessionId,
         normalCaught: normalCaught.value,
         goldenCaught: goldenCaught.value,
+        eggsEarned: score.value,
         maxCombo: maxCombo.value,
       })
       game.applyState(res.state)
@@ -225,7 +255,7 @@ export function usePlaySession() {
   })
 
   return {
-    phase, eggs, lives, hurt, timeScale, frozenLeft, caught, normalCaught, goldenCaught, combo, score, eggValue, lastResult,
+    phase, eggs, lives, hurt, timeScale, frozenLeft, remainingSeconds, caught, normalCaught, goldenCaught, combo, score, eggValue, lastResult,
     start, finish, catchEgg, eggLanded,
   }
 }

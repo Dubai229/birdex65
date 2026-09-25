@@ -5,7 +5,6 @@ import { playSound } from '@/services/audio'
 import { t } from '@/i18n'
 import EggIcon from './EggIcon.vue'
 import ChickenAvatar from './ChickenAvatar.vue'
-import CoinIcon from './CoinIcon.vue'
 import { ASSETS } from '@/config/assets'
 
 const ui = useUiStore()
@@ -14,9 +13,9 @@ const TABS: { id: TabId; icon: string }[] = [
   { id: 'farm', icon: 'farm' },
   { id: 'play', icon: 'egg' },
   { id: 'chickens', icon: 'hen' },
-  { id: 'market', icon: 'coin' },
   { id: 'shop', icon: 'shop' },
-  { id: 'events', icon: '🗺️' },
+  { id: 'earn', icon: '💎' },
+  { id: 'season', icon: '🏆' },
 ]
 
 function go(id: TabId) {
@@ -37,7 +36,6 @@ function go(id: TabId) {
       <span class="icon">
         <EggIcon v-if="tab.icon === 'egg'" :size="24" />
         <ChickenAvatar v-else-if="tab.icon === 'hen'" chicken-key="golden_hen" :size="30" :idle="false" />
-        <CoinIcon v-else-if="tab.icon === 'coin'" :size="26" />
         <img v-else-if="tab.icon === 'farm' || tab.icon === 'shop'" class="img" :src="ASSETS.ui[tab.icon]" alt="" draggable="false" />
         <template v-else>{{ tab.icon }}</template>
       </span>

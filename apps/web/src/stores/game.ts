@@ -30,6 +30,7 @@ export const useGameStore = defineStore('game', () => {
 
   const profile = computed(() => state.value?.profile)
   const balance = computed(() => state.value?.balance)
+  const season = computed(() => state.value?.season)
   const chickens = computed(() => state.value?.chickens ?? [])
   const perHour = computed(() => farmProductionPerHour(chickens.value))
 
@@ -100,13 +101,13 @@ export const useGameStore = defineStore('game', () => {
 
   async function collect() {
     const res = await run('collect', () => api.collect())
-    if (!res) return 0
+    if (!res) return null
     state.value = res.state
     if (res.collected > 0) {
       playSound('collect')
       haptics.success()
     }
-    return res.collected
+    return res
   }
 
   async function sellEggs(amount: number) {
@@ -146,6 +147,15 @@ export const useGameStore = defineStore('game', () => {
     return true
   }
 
+  async function buyEnergy() {
+    const res = await run('buy-energy', () => api.buyEnergy())
+    if (!res) return null
+    state.value = res.state
+    playSound('buyEnergy')
+    haptics.success()
+    return res
+  }
+
   async function upgradeStorage() {
     const res = await run('storage', () => api.upgradeStorage())
     if (!res) return false
@@ -183,12 +193,6 @@ export const useGameStore = defineStore('game', () => {
     if (res) state.value = res
   }
 
-  async function setAvatar(key: string) {
-    const res = await run('avatar', () => api.setAvatar(key))
-    if (res) state.value = res
-    return !!res
-  }
-
   /** Забрать 12% с продаж друзей. Возвращает сколько монет пришло. */
   async function claimReferral() {
     const res = await run('ref', () => api.claimReferral())
@@ -201,14 +205,31 @@ export const useGameStore = defineStore('game', () => {
     return res.coins
   }
 
+  async function verifyChannelSubscription() {
+    const res = await run('channel-check', () => api.verifyChannelSubscription())
+    if (!res) return false
+    state.value = res.state
+    return res.subscribed
+  }
+
+  async function claimChannelBonus() {
+    const res = await run('channel-bonus', () => api.claimChannelBonus())
+    if (!res) return 0
+    state.value = res.state
+    playSound('reward')
+    haptics.success()
+    return res.coins
+  }
+
   function applyState(s: GameState) {
     state.value = s
   }
 
   return {
     state, loading, pending, now,
-    profile, balance, chickens, perHour, displayedChicken, readyToCollect, energy,
-    ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy, upgradeStorage, redeemCode,
-    displayChicken, claimReward, renameFarm, setAvatar, claimReferral, applyState, stopClock,
+    profile, balance, season, chickens, perHour, displayedChicken, readyToCollect, energy,
+    ownsChicken, load, refresh, collect, sellEggs, buyChicken, upgradeChicken, upgradeEnergy, buyEnergy, upgradeStorage, redeemCode,
+    displayChicken, claimReward, renameFarm, claimReferral, verifyChannelSubscription, claimChannelBonus,
+    applyState, stopClock,
   }
 })

@@ -88,20 +88,3 @@ export function referencePerHour(spent: number): number {
   return ph
 }
 
-const valueCache = new Map<number, number>()
-
-/**
- * Сколько яиц даёт одно пойманное яйцо в Play на этом уровне игрока.
- * Ур. 1–10 — из таблицы earlyLevels, дальше формула, но всегда минимум +1 к прошлому уровню.
- */
-export function playEggValue(level: number): number {
-  const V = ECONOMY.playValue
-  const early = V.earlyLevels
-  if (level <= early.length) return early[Math.max(0, level - 1)]
-  const cached = valueCache.get(level)
-  if (cached) return cached
-  const formula = Math.round((referencePerHour(xpForLevel(level)) * V.lag) / V.baselinePerHour)
-  const value = Math.max(formula, playEggValue(level - 1) + 1)
-  valueCache.set(level, value)
-  return value
-}

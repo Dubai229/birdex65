@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { setSoundEnabled, setMusicEnabled, setSoundVolume, setMusicVolume } from '@/services/audio'
 import { setHapticsEnabled } from '@/services/haptics'
+import { setLocale, type Locale } from '@/i18n'
 
 const KEY = 'birdex_settings'
 
@@ -15,10 +16,11 @@ interface Settings {
   soundVolume: number
   musicVolume: number
   farmBg: number
+  language: Locale
 }
 
 const DEFAULTS: Settings = {
-  sound: true, music: true, haptics: true, soundVolume: 80, musicVolume: 60, farmBg: 0,
+  sound: true, music: true, haptics: true, soundVolume: 80, musicVolume: 60, farmBg: 0, language: 'en',
 }
 
 function load(): Settings {
@@ -38,8 +40,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const musicVolume = ref(initial.musicVolume)
   /** Индекс выбранного фона фермы (косметика, хранится на устройстве). */
   const farmBg = ref(initial.farmBg)
+  const language = ref<Locale>(initial.language === 'ru' ? 'ru' : 'en')
 
   function apply() {
+    setLocale(language.value)
     setSoundEnabled(sound.value)
     setMusicEnabled(music.value)
     setHapticsEnabled(haptics.value)
@@ -48,12 +52,12 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       localStorage.setItem(KEY, JSON.stringify({
         sound: sound.value, music: music.value, haptics: haptics.value,
-        soundVolume: soundVolume.value, musicVolume: musicVolume.value, farmBg: farmBg.value,
+        soundVolume: soundVolume.value, musicVolume: musicVolume.value, farmBg: farmBg.value, language: language.value,
       }))
     } catch { /* ignore */ }
   }
 
-  watch([sound, music, haptics, soundVolume, musicVolume, farmBg], apply)
+  watch([sound, music, haptics, soundVolume, musicVolume, farmBg, language], apply)
   apply()
 
   function shiftFarmBg(dir: 1 | -1, total: number) {
@@ -61,5 +65,5 @@ export const useSettingsStore = defineStore('settings', () => {
     farmBg.value = (((farmBg.value + dir) % total) + total) % total
   }
 
-  return { sound, music, haptics, soundVolume, musicVolume, farmBg, shiftFarmBg }
+  return { sound, music, haptics, soundVolume, musicVolume, farmBg, language, shiftFarmBg }
 })

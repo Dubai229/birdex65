@@ -5,6 +5,7 @@ import { STARTER_CHICKEN_KEY } from '@/config/chickens'
 import { storageCapacity } from '@/economy/storage'
 import { levelForXp } from '@/economy/progression'
 import { currentEnergy, energyMaxForLevel } from '@/economy/energy'
+import { SEASON_MS } from '@/economy/season'
 import type { GameState } from '@/types/game'
 import { getTelegramUser } from './telegram'
 
@@ -37,6 +38,8 @@ export function createNewState(now: number): GameState {
     lastProductionAt: now,
     energyUpdatedAt: now,
     reward: { streakDay: 0, lastClaimAt: null },
+    events: { channelSubscribed: false, channelBonusClaimed: false },
+    season: { id: 1, points: 0, startedAt: now, endsAt: now + SEASON_MS, lastSnapshotAt: null },
     stats: { soldCoins: 0, bestPlay: 0 },
     version: SAVE_VERSION,
   }
@@ -48,6 +51,11 @@ export function createNewState(now: number): GameState {
 export function syncDerived(state: GameState): void {
   state.storageLevel ??= 0 // старые сохранения без склада
   state.redeemedCodes ??= []
+  state.events ??= { channelSubscribed: false, channelBonusClaimed: false }
+  state.season ??= { id: 1, points: 0, startedAt: Date.now(), endsAt: Date.now() + SEASON_MS, lastSnapshotAt: null }
+  if (state.season.endsAt - state.season.startedAt < SEASON_MS) {
+    state.season.endsAt = state.season.startedAt + SEASON_MS
+  }
   // Старые сохранения без статистики — дополняем, прогресс не сбрасывается.
   state.stats ??= { soldCoins: 0, bestPlay: 0 }
   state.profile.level = levelForXp(state.profile.xp)
